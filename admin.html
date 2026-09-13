@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - useas Courses</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <!-- Ambient Glow Orbs -->
+    <div class="ambient-orb-1"></div>
+    <div class="ambient-orb-2"></div>
+
+    <!-- Header / Navigation -->
+    <header class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="brand">
+                <div class="brand-logo" style="background: linear-gradient(135deg, var(--accent-cyan), var(--primary));">
+                    <i class="fa-solid fa-user-shield"></i>
+                </div>
+                <div class="brand-text">useas</div>
+                <span class="brand-tag" style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); border-color: rgba(6, 182, 212, 0.3);">Admin Console</span>
+            </a>
+            
+            <div class="nav-actions">
+                <span class="cloud-badge" title="Firebase Realtime Database Connected">
+                    <i class="fa-solid fa-cloud-check"></i> Firebase Synced
+                </span>
+                <a href="index.html" class="btn btn-primary">
+                    <i class="fa-solid fa-graduation-cap"></i> View User Site
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Admin Container -->
+    <main class="container">
+        <!-- Hero Section -->
+        <section class="hero" style="padding: 2rem 1rem; text-align: left;">
+            <h1 class="hero-title" style="font-size: 2.25rem;">Course <span>Management Dashboard</span></h1>
+            <p class="hero-subtitle" style="margin: 0; max-width: 100%;">
+                Create courses, upload YouTube video lessons, and manage learning content for your users.
+            </p>
+        </section>
+
+        <!-- Analytics Stat Cards -->
+        <section class="admin-stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fa-solid fa-book-bookmark"></i>
+                </div>
+                <div>
+                    <div id="statTotalCourses" class="stat-val">0</div>
+                    <div class="stat-label">Total Courses</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan);">
+                    <i class="fa-solid fa-video"></i>
+                </div>
+                <div>
+                    <div id="statTotalLessons" class="stat-val">0</div>
+                    <div class="stat-label">Total YouTube Videos</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green);">
+                    <i class="fa-solid fa-tags"></i>
+                </div>
+                <div>
+                    <div id="statTotalCategories" class="stat-val">0</div>
+                    <div class="stat-label">Active Categories</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(168, 85, 247, 0.15); color: #a855f7;">
+                    <i class="fa-solid fa-id-card"></i>
+                </div>
+                <div>
+                    <div id="statTotalRegistrations" class="stat-val">0</div>
+                    <div class="stat-label">Total Registrations</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Courses Management Table Card -->
+        <section class="admin-card">
+            <div class="table-header-row">
+                <div>
+                    <h2 style="font-family: var(--font-heading); font-size: 1.4rem;">All Courses</h2>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">Manage existing courses or add new video playlists.</p>
+                </div>
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    <button id="resetDemoBtn" class="btn btn-danger btn-sm" title="Clear all courses from Firebase">
+                        <i class="fa-solid fa-trash-can"></i> Clear All Courses
+                    </button>
+                    <button id="openAddCourseBtn" class="btn btn-primary">
+                        <i class="fa-solid fa-plus"></i> Add New Course
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-responsive">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>Thumbnail</th>
+                            <th>Course Name</th>
+                            <th>Category</th>
+                            <th>Level</th>
+                            <th>Videos</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminCoursesTableBody">
+                        <!-- Populated by admin.js -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Student Course Registrations Table Card -->
+        <section class="admin-card" style="margin-top: 2rem;">
+            <div class="table-header-row">
+                <div>
+                    <h2 style="font-family: var(--font-heading); font-size: 1.4rem;">
+                        <i class="fa-solid fa-id-card" style="color: var(--primary);"></i> Student Course Registrations
+                    </h2>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">View registration details submitted by students for each course.</p>
+                </div>
+                <div style="max-width: 280px; width: 100%;">
+                    <input type="text" id="adminRegSearchInput" class="form-control" placeholder="Search by Name, SUC, College...">
+                </div>
+            </div>
+
+            <!-- Registrations Table -->
+            <div class="table-responsive">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>Student Name</th>
+                            <th>SUC Code</th>
+                            <th>College Name</th>
+                            <th>Email</th>
+                            <th>Present Study</th>
+                            <th>Registered Course</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminRegistrationsTableBody">
+                        <!-- Populated by admin.js -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Create/Edit Course Modal -->
+    <div id="courseModal" class="modal-overlay">
+        <div class="form-modal-content">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+                <h3 id="courseModalTitle" style="font-family: var(--font-heading); font-size: 1.35rem;">Add New Course</h3>
+                <button id="closeCourseModalBtn" class="close-modal-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <form id="courseForm">
+                <input type="hidden" id="courseIdInput">
+
+                <div class="form-group">
+                    <label for="courseTitleInput">Course Title *</label>
+                    <input type="text" id="courseTitleInput" class="form-control" placeholder="e.g. Master React & Tailwind" required>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="courseCategoryInput">Category *</label>
+                        <input type="text" id="courseCategoryInput" class="form-control" placeholder="e.g. Web Development" required list="categoryList">
+                        <datalist id="categoryList">
+                            <option value="Web Development"></option>
+                            <option value="Programming"></option>
+                            <option value="Design & Frontend"></option>
+                            <option value="Data Science"></option>
+                        </datalist>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="courseLevelInput">Skill Level</label>
+                        <select id="courseLevelInput" class="form-control">
+                            <option value="Beginner">Beginner</option>
+                            <option value="Intermediate">Intermediate</option>
+                            <option value="Advanced">Advanced</option>
+                            <option value="All Levels" selected>All Levels</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="courseThumbInput">Thumbnail Image URL</label>
+                    <input type="url" id="courseThumbInput" class="form-control" placeholder="https://images.unsplash.com/...">
+                </div>
+
+                <div class="form-group">
+                    <label for="courseDescInput">Course Description *</label>
+                    <textarea id="courseDescInput" class="form-control" placeholder="Provide a brief summary of what students will learn..." required></textarea>
+                </div>
+
+                <div class="form-group" id="initialVideoGroup" style="background: rgba(99, 102, 241, 0.05); border: 1px dashed rgba(99, 102, 241, 0.25); padding: 1rem; border-radius: var(--radius-md); margin-top: 1rem;">
+                    <label for="initialVideoUrlInput" style="color: var(--primary-dark);">
+                        <i class="fa-solid fa-video"></i> First YouTube Video URL / Video ID (Optional)
+                    </label>
+                    <input type="text" id="initialVideoUrlInput" class="form-control" placeholder="https://www.youtube.com/watch?v=... (Optional)">
+                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.3rem;">
+                        You can add your first video now, or manage videos anytime using the "Videos" button.
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+                    <button type="button" id="cancelCourseBtn" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save & Manage Videos</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Manage Videos / Lessons Modal -->
+    <div id="lessonsModal" class="modal-overlay">
+        <div class="form-modal-content" style="max-width: 840px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+                <div>
+                    <h3 id="manageCourseTitle" style="font-family: var(--font-heading); font-size: 1.35rem;">Manage Course Content & Lessons</h3>
+                    <span id="manageCourseCategory" class="badge-category" style="position: static; display: inline-block; margin-top: 0.25rem;">Category</span>
+                </div>
+                <button id="closeLessonsModalBtn" class="close-modal-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Add / Edit Lesson Container -->
+            <div style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.18); padding: 1.25rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
+                <h4 style="font-size: 1rem; margin-bottom: 1rem; color: var(--primary-dark); display: flex; align-items: center; justify-content: space-between;">
+                    <span><i class="fa-solid fa-layer-group"></i> Add / Edit Step Lesson</span>
+                    <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">Step 1: Video ➔ Step 2: Test ➔ Step 3: Article</span>
+                </h4>
+
+                <!-- Lesson Type Selector Tabs -->
+                <div class="lesson-type-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem; background: rgba(0,0,0,0.04); padding: 0.35rem; border-radius: var(--radius-sm);">
+                    <button type="button" class="lesson-type-btn active" data-type="video" style="flex: 1; padding: 0.5rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.4rem; transition: var(--transition);">
+                        <i class="fa-solid fa-video"></i> YouTube Video
+                    </button>
+                    <button type="button" class="lesson-type-btn" data-type="text" style="flex: 1; padding: 0.5rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.4rem; transition: var(--transition);">
+                        <i class="fa-solid fa-file-lines"></i> Plain Text Page
+                    </button>
+                    <button type="button" class="lesson-type-btn" data-type="test" style="flex: 1; padding: 0.5rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.4rem; transition: var(--transition);">
+                        <i class="fa-solid fa-clipboard-check"></i> Proctored Test / Exam
+                    </button>
+                </div>
+
+                <form id="lessonForm">
+                    <input type="hidden" id="lessonIdInput">
+                    <input type="hidden" id="lessonTypeInput" value="video">
+
+                    <!-- Common Fields -->
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="lessonTitleInput">Step Title *</label>
+                            <input type="text" id="lessonTitleInput" class="form-control" placeholder="e.g. 1. Introduction to Web Semantics" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="lessonDurationInput">Estimated Duration</label>
+                            <input type="text" id="lessonDurationInput" class="form-control" placeholder="e.g. 15 mins">
+                        </div>
+                    </div>
+
+                    <!-- Type Specific: VIDEO -->
+                    <div id="videoFieldsGroup">
+                        <div class="form-group">
+                            <label for="lessonUrlInput">YouTube Video URL or Video ID *</label>
+                            <input type="text" id="lessonUrlInput" class="form-control" placeholder="https://www.youtube.com/watch?v=...">
+                        </div>
+                        <div class="form-group">
+                            <label for="lessonDescInput">Video Summary / Student Notes</label>
+                            <textarea id="lessonDescInput" class="form-control" style="min-height: 60px;" placeholder="Optional notes for students..."></textarea>
+                        </div>
+                        <!-- Video Live Preview -->
+                        <div id="videoPreviewWrap" style="display: none; margin-bottom: 1rem;">
+                            <label style="font-size: 0.8rem; color: var(--accent-cyan); display: block; margin-bottom: 0.4rem;">
+                                <i class="fa-solid fa-eye"></i> YouTube Embed Preview:
+                            </label>
+                            <div class="video-wrapper" style="border-radius: var(--radius-md); overflow: hidden; max-height: 200px;">
+                                <iframe id="previewIframe" src="" allowfullscreen></iframe>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Type Specific: TEXT PAGE -->
+                    <div id="textFieldsGroup" style="display: none;">
+                        <div class="form-group">
+                            <label for="lessonTextInput">Article Content / Plain Text Body *</label>
+                            <textarea id="lessonTextInput" class="form-control" style="min-height: 140px;" placeholder="Enter plain text or article notes for students to read..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Type Specific: EXAM / TEST BUILDER -->
+                    <div id="examFieldsGroup" style="display: none;">
+                        <div class="form-group">
+                            <label for="examInstructionsInput">Exam Anti-Cheating Guidelines & Instructions</label>
+                            <textarea id="examInstructionsInput" class="form-control" style="min-height: 60px;" placeholder="No cheating allowed. Camera & microphone MUST be on. Switching tabs is strictly monitored."></textarea>
+                        </div>
+
+                        <!-- Question Builder Container -->
+                        <div style="background: rgba(255,255,255,0.7); border: 1px border-color; padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 1rem;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                                <strong style="font-size: 0.9rem; color: var(--primary-dark);"><i class="fa-solid fa-list-ol"></i> Exam Questions Builder</strong>
+                                <button type="button" id="addQuestionBtn" class="btn btn-secondary btn-sm">
+                                    <i class="fa-solid fa-plus"></i> Add Question
+                                </button>
+                            </div>
+                            <div id="questionsContainer" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                <!-- Dynamic questions rendered here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem;">
+                        <button type="button" id="previewBtn" class="btn btn-secondary btn-sm">
+                            <i class="fa-solid fa-circle-play"></i> Test Video Preview
+                        </button>
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="fa-solid fa-plus"></i> Save Step to Course
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Existing Lessons List -->
+            <div>
+                <h4 style="font-size: 1rem; margin-bottom: 0.75rem;">Course Lessons & Steps Sequence</h4>
+                <div id="lessonsTableContainer">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script type="module" src="firebase-config.js"></script>
+    <script src="store.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>

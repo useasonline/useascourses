@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>useas - Best Courses For You | Free Learning Platform</title>
+    <meta name="description" content="Discover top video courses, master web development, programming, and design with interactive YouTube video player and progress tracking.">
+    <link rel="stylesheet" href="styles.css">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <!-- Ambient Glow Orbs -->
+    <div class="ambient-orb-1"></div>
+    <div class="ambient-orb-2"></div>
+
+    <!-- Header / Navigation -->
+    <header class="navbar" id="mainNavbar">
+        <div class="nav-container">
+            <a href="index.html" class="brand" title="useas - Best Courses For You">
+                <div class="brand-logo">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                    <span class="logo-glow"></span>
+                </div>
+                <div class="brand-text-group">
+                    <div class="brand-text">useas</div>
+                    <div class="brand-subtext">
+                        <span class="subtext-dot"></span>
+                        BEST COURSES FOR YOU
+                    </div>
+                </div>
+            </a>
+
+            <!-- Center Navigation Pills -->
+            <nav class="nav-menu">
+                <a href="#mainNavbar" id="navExploreCourses" class="nav-link active">
+                    <i class="fa-solid fa-compass"></i>
+                    <span>Explore Courses</span>
+                </a>
+                <a href="#coursesGrid" id="navTopCourses" class="nav-link">
+                    <i class="fa-solid fa-fire-flame-curved"></i>
+                    <span>Top Courses</span>
+                </a>
+            </nav>
+
+            <div class="nav-actions">
+                <button id="authOpenBtn" class="btn btn-primary btn-sm nav-cta-btn">
+                    <i class="fa-solid fa-right-to-bracket"></i>
+                    <span>Student Login / Signup</span>
+                </button>
+                <div id="userHeaderProfile" class="user-profile-wrap" style="display: none;">
+                    <button id="profileAvatarBtn" class="profile-avatar-btn" title="View Profile" type="button" aria-expanded="false">
+                        <span id="navAvatarLetter" class="avatar-letter">S</span>
+                    </button>
+
+                    <!-- Profile Dropdown Card -->
+                    <div id="profileDropdown" class="profile-dropdown">
+                        <div class="profile-dropdown-header">
+                            <div class="profile-dropdown-avatar">
+                                <span id="dropdownAvatarLetter" class="avatar-letter">S</span>
+                            </div>
+                            <div class="profile-dropdown-info">
+                                <h4 id="dropdownStudentName" class="profile-dropdown-name">Student Name</h4>
+                                <p id="dropdownStudentEmail" class="profile-dropdown-email">student@example.com</p>
+                                <span id="dropdownSucBadge" class="suc-pill">SUC10045</span>
+                            </div>
+                        </div>
+                        <div class="profile-dropdown-divider"></div>
+                        <div class="profile-dropdown-actions">
+                            <button id="logoutBtn" class="btn btn-danger dropdown-logout-btn" type="button">
+                                <i class="fa-solid fa-right-from-bracket"></i> Log Out
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="container">
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="hero-badge">
+                <i class="fa-solid fa-sparkles"></i> 100% Free Interactive Learning
+            </div>
+            <h1 class="hero-title">Master New Skills With <br><span>Best Courses For You</span></h1>
+            <p class="hero-subtitle">
+                Explore high-quality curated YouTube video courses. Track your completion progress step-by-step as you learn.
+            </p>
+        </section>
+
+        <!-- Search Bar Controls -->
+        <section class="filter-bar">
+            <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="searchInput" placeholder="Search courses or topics...">
+            </div>
+        </section>
+
+        <!-- Course Cards Grid -->
+        <section>
+            <div id="coursesGrid" class="courses-grid">
+                <!-- Dynamically populated by app.js -->
+            </div>
+        </section>
+    </main>
+
+    <!-- Video Player Modal Overlay -->
+    <div id="playerModal" class="modal-overlay">
+        <div class="player-modal">
+            <!-- Left Side: YouTube Embed & Lesson Controls -->
+            <div class="player-main">
+                <div class="player-header">
+                    <div id="modalCourseTitle" class="player-course-title">Course Title</div>
+                    <button id="closeModalBtn" class="close-modal-btn" title="Close Player">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Video Player Frame -->
+                <div class="video-wrapper" id="videoWrapper">
+                    <iframe id="youtubeIframe" src="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen></iframe>
+                    <!-- Click Overlay for Code Play/Pause Control & External Link Protection -->
+                    <div id="videoClickOverlay" class="video-click-overlay" title="Click to Play / Pause">
+                        <div id="playPauseIconWrap" class="play-pause-icon-wrap">
+                            <i id="playPauseIcon" class="fa-solid fa-play"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Text Article View Container -->
+                <div id="textArticleView" class="article-reader-container" style="display: none; background: #fff; padding: 2rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); max-height: 440px; overflow-y: auto;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: var(--accent-green);">
+                        <i class="fa-solid fa-file-lines" style="font-size: 1.25rem;"></i>
+                        <span style="font-weight: 700; font-size: 0.9rem;">Reading Lesson Step</span>
+                    </div>
+                    <h2 id="articleTitle" style="font-size: 1.4rem; margin-bottom: 1rem; color: var(--text-main);">Article Title</h2>
+                    <div id="articleBody" style="font-size: 0.95rem; line-height: 1.7; color: var(--text-muted); white-space: pre-line; margin-bottom: 1.5rem;">
+                        Article content body...
+                    </div>
+                    <div style="display: flex; justify-content: flex-end;">
+                        <button id="completeArticleBtn" class="btn btn-success">
+                            <i class="fa-solid fa-circle-check"></i> Complete Reading & Continue
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Test / Exam Overview View Container -->
+                <div id="testOverviewView" class="test-overview-container" style="display: none; background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(168,85,247,0.06)); padding: 2rem; border-radius: var(--radius-md); border: 1px solid rgba(99,102,241,0.2); text-align: center;">
+                    <div style="width: 56px; height: 56px; background: rgba(168,85,247,0.15); color: var(--secondary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin: 0 auto 1rem auto;">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <h2 id="testOverviewTitle" style="font-size: 1.4rem; margin-bottom: 0.5rem; color: var(--text-main);">Proctored Online Examination</h2>
+                    <p id="testOverviewDesc" style="color: var(--text-muted); font-size: 0.9rem; max-width: 520px; margin: 0 auto 1.25rem auto;">
+                        This step requires taking a proctored examination. You must complete this test with a passing mark of 60% or higher.
+                    </p>
+
+                    <!-- Anti-Cheating Badges -->
+                    <div style="display: flex; justify-content: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                        <span class="badge-category" style="position: static; background: rgba(16,185,129,0.12); color: var(--accent-green);">
+                            <i class="fa-solid fa-camera"></i> Live Camera Active
+                        </span>
+                        <span class="badge-category" style="position: static; background: rgba(2,132,199,0.12); color: var(--accent-cyan);">
+                            <i class="fa-solid fa-microphone"></i> Microphone Active
+                        </span>
+                        <span class="badge-category" style="position: static; background: rgba(239,68,68,0.12); color: var(--accent-red);">
+                            <i class="fa-solid fa-ban"></i> No Tab Switch / Anti-Cheat
+                        </span>
+                    </div>
+
+                    <!-- Exam Status Box -->
+                    <div id="examStatusBox" style="margin-bottom: 1.5rem;"></div>
+
+                    <button id="openExamPrecheckBtn" class="btn btn-primary btn-lg" style="padding: 0.85rem 2rem; font-size: 1rem; border-radius: var(--radius-full);">
+                        <i class="fa-solid fa-circle-play"></i> Start Proctored Exam
+                    </button>
+                </div>
+
+                <!-- Custom Clean Video Player Control Bar -->
+                <div class="custom-video-bar" id="customVideoBar">
+                    <button id="customPlayPauseBtn" class="custom-bar-btn" title="Play / Pause Video">
+                        <i id="customPlayIcon" class="fa-solid fa-play"></i>
+                    </button>
+                    <button id="customRewind10Btn" class="custom-bar-btn" title="Rewind 10 Seconds" style="font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 3px; min-width: 44px; padding: 0 6px; border-radius: 20px;">
+                        <i class="fa-solid fa-rotate-left"></i><span style="font-size: 0.68rem;">10s</span>
+                    </button>
+                    <span id="customTimeDisplay" class="custom-time-display">0:00 / 0:00</span>
+                    <div class="custom-scrub-container">
+                        <input type="range" id="customScrubSlider" min="0" max="100" value="0" step="0.1" class="custom-scrub-slider">
+                        <div id="customScrubFill" class="custom-scrub-fill"></div>
+                    </div>
+                </div>
+
+                <!-- Controls & Info -->
+                <div class="player-controls-panel">
+                    <div class="lesson-info-box">
+                        <div>
+                            <h2 id="modalLessonTitle" class="lesson-current-title">Lesson Title</h2>
+                            <p id="modalLessonDesc" style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem;">Lesson description...</p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                            <button id="toggleCompleteBtn" class="btn btn-secondary btn-sm" style="transition: var(--transition);">
+                                <i class="fa-regular fa-circle-check"></i> <span>Mark as Complete</span>
+                            </button>
+                            <button id="fullscreenBtn" class="btn btn-secondary btn-sm" title="Watch in Fullscreen Mode">
+                                <i class="fa-solid fa-expand"></i> Fullscreen
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Course Completion Progress Sub-panel -->
+                    <div class="progress-section" style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.12); padding: 1rem; border-radius: var(--radius-md);">
+                        <div class="progress-header">
+                            <span><i class="fa-solid fa-chart-line"></i> Overall Course Completion</span>
+                            <span id="modalProgressPct" class="progress-pct">0%</span>
+                        </div>
+                        <div class="progress-bar-bg" style="height: 10px; margin-top: 0.4rem;">
+                            <div id="modalProgressBarFill" class="progress-bar-fill" style="width: 0%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Navigation Next/Prev buttons -->
+                    <div class="nav-lessons-bar">
+                        <button id="prevLessonBtn" class="btn btn-secondary btn-sm">
+                            <i class="fa-solid fa-arrow-left"></i> Previous Video
+                        </button>
+                        <span id="modalLessonCounter" style="font-size: 0.85rem; color: var(--text-dim);">Lesson 1 of 4</span>
+                        <button id="nextLessonBtn" class="btn btn-primary btn-sm">
+                            Next Video <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: Lessons Playlist Drawer -->
+            <div class="player-sidebar">
+                <div class="sidebar-head">
+                    <div class="sidebar-title">Course Content</div>
+                    <div id="sidebarProgressCount" style="font-size: 0.8rem; color: var(--text-muted);">0 / 0 Lessons Completed</div>
+                </div>
+                <ul id="lessonsList" class="lessons-list">
+                    <!-- Lessons items rendered dynamically -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Authentication Modal (Login / Sign Up) -->
+    <div id="authModal" class="modal-overlay">
+        <div class="auth-card">
+            <button id="closeAuthBtn" class="close-modal-btn auth-close-btn" title="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="auth-header">
+                <div class="brand-logo" style="width: 48px; height: 48px; font-size: 1.3rem; margin: 0 auto 0.75rem auto;">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <h2 id="authModalTitle" class="auth-title">Student Portal Login</h2>
+                <p class="auth-subtitle">Access your courses and track your live progress.</p>
+            </div>
+
+            <!-- Tab Switcher -->
+            <div class="auth-tabs">
+                <button id="tabLoginBtn" class="auth-tab-btn active" type="button">Log In</button>
+                <button id="tabSignupBtn" class="auth-tab-btn" type="button">Create Account</button>
+            </div>
+
+            <!-- Form Error Message Box -->
+            <div id="authErrorBox" class="auth-error-box" style="display: none;"></div>
+
+            <!-- Log In Form -->
+            <form id="loginForm" class="auth-form">
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-id-card"></i> SUC Code or Email</label>
+                    <input type="text" id="loginIdInput" class="form-input" placeholder="Enter SUC Code or Email" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-lock"></i> Account Password</label>
+                    <input type="password" id="loginPasswordInput" class="form-input" placeholder="Enter your password" required>
+                </div>
+                <button type="submit" id="loginSubmitBtn" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
+                    <i class="fa-solid fa-right-to-bracket"></i> Log In to Portal
+                </button>
+            </form>
+
+            <!-- Sign Up Form (hidden by default) -->
+            <form id="signupForm" class="auth-form" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-user"></i> Student Full Name</label>
+                    <input type="text" id="signupNameInput" class="form-input" placeholder="e.g. John Doe" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-id-card"></i> Student SUC Code</label>
+                    <input type="text" id="signupSucInput" class="form-input" placeholder="e.g. SUC10045" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-envelope"></i> Student Email</label>
+                    <input type="email" id="signupEmailInput" class="form-input" placeholder="student@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-lock"></i> Set Password</label>
+                    <input type="password" id="signupPasswordInput" class="form-input" placeholder="Create password" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-shield-halved"></i> Confirm Password</label>
+                    <input type="password" id="signupConfirmPasswordInput" class="form-input" placeholder="Re-enter password to check" required>
+                </div>
+                <button type="submit" id="signupSubmitBtn" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
+                    <i class="fa-solid fa-user-plus"></i> Create Account & Login
+                </button>
+            </form>
+
+            <div class="auth-footer">
+                <span id="authSwitchPrompt">Don't have an account? <a href="#" id="authSwitchLink" style="color: var(--primary-dark); font-weight: 700;">Sign Up here</a></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Course Locked Modal Overlay -->
+    <div id="lockedModal" class="modal-overlay">
+        <div class="auth-card" style="text-align: center; max-width: 420px; padding: 2.5rem 2rem; position: relative;">
+            <button id="closeLockedBtn" class="close-modal-btn auth-close-btn" title="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div id="lockedLottieWrap" style="width: 180px; height: 180px; margin: 0 auto;"></div>
+            <h2 style="font-size: 1.6rem; font-weight: 800; color: var(--text-main); margin-top: 1rem; margin-bottom: 0.5rem;">
+                Course Locked
+            </h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.5; margin-bottom: 1.5rem;">
+                Please log in to access this course and watch video lessons.
+            </p>
+            <button id="lockedLoginBtn" class="btn btn-primary" style="width: 100%; font-size: 1rem; padding: 0.85rem 1.25rem;">
+                <i class="fa-solid fa-right-to-bracket"></i> Log In to Access Course
+            </button>
+        </div>
+    </div>
+
+    <!-- Course Registration Modal -->
+    <div id="courseRegisterModal" class="modal-overlay">
+        <div class="auth-card" style="max-width: 480px; padding: 2.2rem 2rem; position: relative;">
+            <button id="closeRegisterBtn" class="close-modal-btn auth-close-btn" title="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="auth-header">
+                <div class="brand-logo" style="width: 46px; height: 46px; font-size: 1.25rem; margin: 0 auto 0.6rem auto; background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);">
+                    <i class="fa-solid fa-user-pen"></i>
+                </div>
+                <h2 class="auth-title" style="font-size: 1.5rem;">Course Registration</h2>
+                <p id="regCourseTitleSubtitle" class="auth-subtitle" style="font-weight: 700; color: var(--primary-dark);">Confirm details to join this course</p>
+            </div>
+
+            <form id="courseRegisterForm" class="auth-form" style="margin-top: 1rem;">
+                <input type="hidden" id="regCourseIdInput">
+                
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-user"></i> Student Full Name</label>
+                    <input type="text" id="regFullNameInput" class="form-input" placeholder="e.g. John Doe" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-id-card"></i> SUC Code</label>
+                    <input type="text" id="regSucCodeInput" class="form-input" placeholder="e.g. SUC10045" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-building-columns"></i> Name of College</label>
+                    <input type="text" id="regCollegeNameInput" class="form-input" placeholder="e.g. Engineering & Tech College" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-envelope"></i> Email Address</label>
+                    <input type="email" id="regEmailInput" class="form-input" placeholder="student@example.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-graduation-cap"></i> Present Study / Year / Branch</label>
+                    <input type="text" id="regPresentStudyInput" class="form-input" placeholder="e.g. B.Tech CSE 3rd Year / Degree 2nd Year" required>
+                </div>
+
+                <button type="submit" id="regSubmitBtn" class="btn btn-primary" style="width: 100%; margin-top: 0.75rem; padding: 0.85rem;">
+                    <i class="fa-solid fa-circle-check"></i> Register & Access Course
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Proctored Exam Pre-Check Modal -->
+    <div id="preExamModal" class="modal-overlay">
+        <div class="auth-card" style="max-width: 640px; padding: 2rem; border-radius: var(--radius-lg);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                <h3 style="font-size: 1.3rem; color: var(--primary-dark); font-family: var(--font-heading); display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fa-solid fa-shield-halved"></i> Exam Security & Camera Check
+                </h3>
+                <button id="closePreExamModalBtn" class="close-modal-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Anti-Cheating & Camera Rules Checklist -->
+            <div style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 1.25rem;">
+                <strong style="color: var(--accent-red); font-size: 0.9rem; display: block; margin-bottom: 0.4rem;">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Mandatory Anti-Cheating Guidelines:
+                </strong>
+                <ul style="font-size: 0.85rem; color: var(--text-main); margin-left: 1.2rem; display: flex; flex-direction: column; gap: 0.3rem;">
+                    <li><strong>No Cheating Allowed:</strong> Your face and audio will be monitored live.</li>
+                    <li><strong>Camera & Mic Must Be ON:</strong> Web camera stream displays on the exam window.</li>
+                    <li><strong>No Tab Switching:</strong> Leaving or blurring the exam window generates cheating violations.</li>
+                    <li><strong>Developer Tools Disabled:</strong> DevTools, right-click context menu, and inspect shortcuts are blocked.</li>
+                </ul>
+            </div>
+
+            <!-- Live Webcam Check Box -->
+            <div style="margin-bottom: 1.25rem;">
+                <label style="font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span><i class="fa-solid fa-camera" style="color: var(--accent-cyan);"></i> Live Camera & Microphone Test Preview</span>
+                    <span id="webcamStatusBadge" style="color: var(--accent-amber); font-weight: 600; font-size: 0.8rem;">Initializing camera...</span>
+                </label>
+
+                <div style="position: relative; width: 100%; height: 220px; background: #000; border-radius: var(--radius-md); overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                    <video id="preExamWebcamFeed" autoplay playsinline muted style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);"></video>
+                    <div id="camFallbackMsg" style="position: absolute; text-align: center; color: #fff; padding: 1rem;">
+                        <i class="fa-solid fa-camera-rotate" style="font-size: 2rem; margin-bottom: 0.5rem; color: var(--accent-cyan);"></i>
+                        <p style="font-size: 0.85rem;">Click "Enable Camera" to grant webcam access for your exam.</p>
+                        <button id="enableCamBtn" type="button" class="btn btn-secondary btn-sm" style="margin-top: 0.5rem; font-size: 0.8rem;">
+                            <i class="fa-solid fa-video"></i> Allow Camera Access
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button type="button" id="cancelPreExamBtn" class="btn btn-secondary">Cancel</button>
+                <button type="button" id="launchExamTabBtn" class="btn btn-success btn-lg" style="padding: 0.75rem 1.5rem;">
+                    <i class="fa-solid fa-rocket"></i> Launch Exam in Secure Tab
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="lottie.min.js"></script>
+    <script src="animations/no-item-found.js"></script>
+    <script src="animations/locked.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script type="module" src="firebase-config.js"></script>
+    <script src="store.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proctored Examination - useas Courses</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Anti-Cheat Floating Webcam Feed */
+        .exam-webcam-widget {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 220px;
+            height: 155px;
+            background: #000;
+            border: 2px solid var(--accent-green);
+            border-radius: var(--radius-md);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            z-index: 9999;
+            transition: var(--transition);
+        }
+
+        .exam-webcam-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        .exam-webcam-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(239, 68, 68, 0.85);
+            color: #fff;
+            font-size: 0.68rem;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .exam-webcam-badge .rec-dot {
+            width: 6px;
+            height: 6px;
+            background: #fff;
+            border-radius: 50%;
+            animation: pulseRec 1.2s infinite;
+        }
+
+        @keyframes pulseRec {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+
+        .exam-header {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .exam-card {
+            background: rgba(30, 41, 59, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .option-label {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.85rem 1.2rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: var(--transition);
+            margin-bottom: 0.65rem;
+            font-size: 0.95rem;
+        }
+
+        .option-label:hover {
+            background: rgba(99, 102, 241, 0.15);
+            border-color: var(--primary);
+        }
+
+        .option-label.selected {
+            background: rgba(99, 102, 241, 0.25);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        .option-label input[type="radio"] {
+            accent-color: var(--primary);
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Warning Toast overlay for anti-cheat violations */
+        .violation-banner {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(239, 68, 68, 0.95);
+            color: #fff;
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius-full);
+            font-weight: 700;
+            font-size: 0.9rem;
+            box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Ambient Glow Orbs -->
+    <div class="ambient-orb-1"></div>
+    <div class="ambient-orb-2"></div>
+
+    <!-- Violation Banner -->
+    <div id="violationBanner" class="violation-banner">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span id="violationMsg">⚠️ Warning: Tab switching detected! Cheat violation recorded.</span>
+    </div>
+
+    <!-- Exam Sticky Header -->
+    <header class="exam-header">
+        <div>
+            <div id="examCourseTitle" style="font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px;">Course Title</div>
+            <h1 id="examTitle" style="font-size: 1.25rem; font-family: var(--font-heading); color: #fff; margin: 0;">Online Examination</h1>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 1.5rem;">
+            <!-- Timer Badge -->
+            <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); color: var(--accent-amber); padding: 0.4rem 1rem; border-radius: var(--radius-full); font-weight: 800; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-regular fa-clock"></i> <span id="examTimer">15:00</span>
+            </div>
+
+            <!-- Proctored Live Badge -->
+            <span class="cloud-badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border-color: rgba(16, 185, 129, 0.3);">
+                <i class="fa-solid fa-shield-halved"></i> Proctored & Monitored Live
+            </span>
+        </div>
+    </header>
+
+    <!-- Main Exam Container -->
+    <main class="container" style="max-width: 860px; padding: 2rem 1rem; position: relative; z-index: 1;">
+        <!-- Instructions Summary -->
+        <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); padding: 1.25rem 1.5rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
+            <strong style="color: var(--primary-dark); font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+                <i class="fa-solid fa-circle-info"></i> Anti-Cheating & Security Notice
+            </strong>
+            <p id="examInstructions" style="color: var(--text-dim); font-size: 0.85rem; margin-top: 0.4rem; line-height: 1.5;">
+                Webcam face camera and microphone monitoring are active. Right-clicking, developer tools, and switching browser tabs are strictly blocked and monitored.
+            </p>
+        </div>
+
+        <!-- Questions List Container -->
+        <form id="examSubmitForm">
+            <div id="questionsWrap">
+                <!-- Rendered dynamically by exam.js -->
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 2rem; margin-bottom: 4rem;">
+                <button type="submit" id="submitExamBtn" class="btn btn-success btn-lg" style="padding: 0.85rem 2.5rem; font-size: 1.05rem; border-radius: var(--radius-full);">
+                    <i class="fa-solid fa-paper-plane"></i> Submit Examination
+                </button>
+            </div>
+        </form>
+    </main>
+
+    <!-- Anti-Cheat Floating Live Webcam Stream Box -->
+    <div class="exam-webcam-widget">
+        <div class="exam-webcam-badge">
+            <div class="rec-dot"></div> REC LIVE
+        </div>
+        <video id="examWebcamVideo" class="exam-webcam-video" autoplay playsinline muted></video>
+    </div>
+
+    <!-- Exam Results Modal -->
+    <div id="resultsModal" class="modal-overlay">
+        <div class="auth-card" style="max-width: 520px; text-align: center; padding: 2.5rem 2rem;">
+            <div id="resultIconWrap" style="width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; margin: 0 auto 1.25rem auto;">
+                <i id="resultIcon" class="fa-solid fa-trophy"></i>
+            </div>
+            <h2 id="resultTitle" style="font-size: 1.6rem; color: #fff; font-family: var(--font-heading); margin-bottom: 0.5rem;">Examination Results</h2>
+            <p id="resultSubtitle" style="color: var(--text-dim); font-size: 0.9rem; margin-bottom: 1.5rem;">Score details</p>
+
+            <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 1.25rem; border-radius: var(--radius-md); margin-bottom: 1.75rem;">
+                <div id="resultScorePct" style="font-size: 2.5rem; font-weight: 800; color: #fff;">0%</div>
+                <div id="resultScoreFraction" style="font-size: 0.9rem; color: var(--text-dim); margin-top: 0.25rem;">0 of 0 Correct</div>
+            </div>
+
+            <button id="closeExamResultBtn" class="btn btn-primary btn-lg" style="width: 100%; border-radius: var(--radius-full); padding: 0.85rem;">
+                <i class="fa-solid fa-circle-check"></i> Complete & Return to Portal
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script type="module" src="firebase-config.js"></script>
+    <script src="store.js"></script>
+    <script src="exam.js"></script>
+</body>
+</html>
