@@ -61,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let latestYtCurrentTime = 0;
     let latestYtDuration = 0;
     let latestYtPlayerState = -1;
+    let isCurrentlyPlaying = false;
 
     // Window postMessage listener for YouTube Player Iframe
     window.addEventListener('message', (event) => {
@@ -76,6 +77,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (typeof info.playerState === 'number') {
                     latestYtPlayerState = info.playerState;
+                    if (info.playerState === 1) { // PLAYING
+                        isCurrentlyPlaying = true;
+                        updatePlayPauseUI(true);
+                    } else if (info.playerState === 2 || info.playerState === 0) { // PAUSED or ENDED
+                        isCurrentlyPlaying = false;
+                        updatePlayPauseUI(false);
+                    }
                 }
             }
         } catch (e) {}
@@ -126,14 +134,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updatePlayPauseUI(isPlaying) {
+        const playIcon = document.getElementById('customPlayIcon');
+        if (playIcon) {
+            playIcon.className = isPlaying ? 'fa-solid fa-pause' : 'fa-solid fa-play';
+        }
+    }
+
     function togglePlayPause() {
         const state = getYTPlayerState();
-        if (state === 1) { // 1 = PLAYING
+        const playing = (state === 1) || isCurrentlyPlaying;
+        if (playing) {
+            isCurrentlyPlaying = false;
             sendYTCommand('pauseVideo');
             showPlayPauseAnim('pause');
+            updatePlayPauseUI(false);
         } else {
+            isCurrentlyPlaying = true;
             sendYTCommand('playVideo');
             showPlayPauseAnim('play');
+            updatePlayPauseUI(true);
         }
     }
 
@@ -296,13 +316,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else {
                     ytPlayer = new YT.Player('youtubeIframe', {
+                        videoId: videoId || undefined,
                         playerVars: {
+                            'autoplay': 1,
                             'controls': 0,
                             'rel': 0,
                             'modestbranding': 1,
                             'disablekb': 1,
                             'iv_load_policy': 3,
-                            'fs': 0
+                            'fs': 0,
+                            'enablejsapi': 1
                         },
                         events: {
                             'onStateChange': onPlayerStateChange,
@@ -321,6 +344,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function onPlayerStateChange(event) {
+        if (event && typeof event.data === 'number') {
+            if (event.data === 1) { // PLAYING
+                isCurrentlyPlaying = true;
+                updatePlayPauseUI(true);
+            } else if (event.data === 2 || event.data === 0) { // PAUSED or ENDED
+                isCurrentlyPlaying = false;
+                updatePlayPauseUI(false);
+            }
+        }
+
         // Perform pending resume seek when video starts buffering (3) or playing (1)
         if (event && (event.data === 1 || event.data === 3) && pendingResumeTimestamp > 2) {
             const resumeTime = pendingResumeTimestamp;

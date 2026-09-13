@@ -255,16 +255,19 @@ class StoreManager {
         }
     }
 
-    // Helper: Extract YouTube Video ID from any URL format
+    // Helper: Extract YouTube Video ID from any URL format cleanly (watch, shorts, embed, youtu.be, etc.)
     extractYoutubeId(urlOrId) {
         if (!urlOrId) return '';
         const trimmed = urlOrId.trim();
         if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
             return trimmed;
         }
-        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-        const match = trimmed.match(regExp);
-        return (match && match[2].length === 11) ? match[2] : trimmed;
+        const match = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([a-zA-Z0-9_-]{11})/);
+        if (match && match[1]) {
+            return match[1];
+        }
+        const fallback = trimmed.match(/([a-zA-Z0-9_-]{11})/);
+        return fallback ? fallback[1] : trimmed;
     }
 
     // Get all courses
