@@ -121,15 +121,126 @@
                     </button>
                 </div>
 
-                <!-- Video Player Frame -->
-                <div class="video-wrapper" id="videoWrapper">
-                    <iframe id="youtubeIframe" src="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen></iframe>
-                    <!-- Click Overlay for Code Play/Pause Control & External Link Protection -->
-                    <div id="videoClickOverlay" class="video-click-overlay" title="Click to Play / Pause">
-                        <div id="playPauseIconWrap" class="play-pause-icon-wrap">
-                            <i id="playPauseIcon" class="fa-solid fa-play"></i>
+                <!-- Video Player Container with PiP Floating Support -->
+                <div id="videoContainer" class="video-container-wrapper">
+                    <!-- Picture-in-Picture Mini-Player Header -->
+                    <div id="pipTitleBar" class="pip-title-bar" style="display: none;">
+                        <span><i class="fa-solid fa-tv"></i> Picture-in-Picture Mini-Player</span>
+                        <button id="exitPipBtn" class="pip-close-btn" title="Exit Mini-Player">✕</button>
+                    </div>
+
+                    <!-- Video Wrapper -->
+                    <div class="video-wrapper" id="videoWrapper">
+                        <iframe id="youtubeIframe" src="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen></iframe>
+                        
+                        <!-- Big Center Play/Pause Overlay Button -->
+                        <div id="bigCenterPlayBtn" class="big-center-play-btn" title="Click to Play / Pause Video">
+                            <i id="bigCenterPlayIcon" class="fa-solid fa-play"></i>
+                        </div>
+
+                        <!-- Embed Restricted Video Fallback Card -->
+                        <div id="restrictedFallbackCard" class="restricted-fallback-card" style="display: none;">
+                            <div class="restricted-icon-wrap">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                            </div>
+                            <div class="restricted-text">
+                                <h3 class="restricted-title">Video Embedding Restricted by Owner</h3>
+                                <p class="restricted-desc">This YouTube video cannot be played directly inside embedded frames, but you can watch it directly on YouTube.</p>
+                            </div>
+                            <div class="restricted-actions">
+                                <a id="watchOnYtBtn" href="#" target="_blank" rel="noopener noreferrer" class="btn-watch-yt">
+                                    <span>Watch on YouTube</span>
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                                </a>
+                                <button id="restrictedCompleteBtn" class="btn-restricted-complete">
+                                    <i class="fa-solid fa-circle-check" style="color: #34D399;"></i>
+                                    <span>Mark Lesson Complete</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Click Overlay for Code Play/Pause Control & External Link Protection -->
+                        <div id="videoClickOverlay" class="video-click-overlay" title="Click to Play / Pause">
+                            <div id="playPauseIconWrap" class="play-pause-icon-wrap">
+                                <i id="playPauseIcon" class="fa-solid fa-play"></i>
+                            </div>
+                        </div>
+
+                        <!-- Coursera Custom Video Controls Bar -->
+                        <div id="customVideoControlsBar" class="custom-video-controls-bar">
+                            <!-- Scrub / Progress Bar -->
+                            <div id="customScrubContainer" class="custom-scrub-container">
+                                <input type="range" id="customScrubSlider" min="0" max="100" value="0" step="0.1" class="custom-scrub-slider">
+                                <div id="customScrubFill" class="custom-scrub-fill"></div>
+                            </div>
+
+                            <!-- Controls Row -->
+                            <div class="controls-row">
+                                <!-- Left Group -->
+                                <div class="controls-left-group">
+                                    <button id="customPlayPauseBtn" class="ctrl-btn" title="Play / Pause">
+                                        <i id="customPlayIcon" class="fa-solid fa-play"></i>
+                                    </button>
+
+                                    <div class="volume-group">
+                                        <button id="customMuteBtn" class="ctrl-btn" title="Mute / Unmute">
+                                            <i id="customMuteIcon" class="fa-solid fa-volume-high"></i>
+                                        </button>
+                                        <input type="range" id="customVolumeSlider" min="0" max="1" step="0.05" value="1" class="volume-slider">
+                                    </div>
+
+                                    <button id="customRewind10Btn" class="ctrl-btn-text" title="Rewind 10 Seconds">
+                                        <i class="fa-solid fa-rotate-left"></i> 10s
+                                    </button>
+
+                                    <span id="customTimeDisplay" class="custom-time-display">0:00 / 0:00</span>
+
+                                    <button id="customForward10Btn" class="ctrl-btn-text" title="Forward 10 Seconds">
+                                        10s <i class="fa-solid fa-rotate-right"></i>
+                                    </button>
+                                </div>
+
+                                <!-- Right Group -->
+                                <div class="controls-right-group">
+                                    <div class="speed-menu-container">
+                                        <button id="speedMenuBtn" class="speed-btn" title="Playback Speed">1x</button>
+                                        <div id="speedMenuDropdown" class="speed-menu-dropdown" style="display: none;">
+                                            <div class="speed-option" data-speed="0.75">0.75x</div>
+                                            <div class="speed-option active" data-speed="1">1x (Normal)</div>
+                                            <div class="speed-option" data-speed="1.25">1.25x</div>
+                                            <div class="speed-option" data-speed="1.5">1.5x</div>
+                                            <div class="speed-option" data-speed="2">2x</div>
+                                        </div>
+                                    </div>
+
+                                    <button id="speedSettingsBtn" class="ctrl-btn" title="Speed Settings">
+                                        <i class="fa-solid fa-gear"></i>
+                                    </button>
+
+                                    <button id="pipBtn" class="ctrl-btn" title="Picture-in-Picture (PiP)">
+                                        <i class="fa-solid fa-clone"></i>
+                                    </button>
+
+                                    <button id="fullscreenBtn" class="ctrl-btn" title="Toggle Fullscreen">
+                                        <i id="fullscreenIcon" class="fa-solid fa-expand"></i>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- PiP Placeholder Container inside Modal when PiP is active -->
+                <div id="pipPlaceholderCard" class="pip-placeholder-card" style="display: none;">
+                    <div class="pip-placeholder-icon">
+                        <i class="fa-solid fa-clone"></i>
+                    </div>
+                    <h3 class="pip-placeholder-title">Playing in Picture-in-Picture</h3>
+                    <p class="pip-placeholder-desc">Video is running in a floating mini-player</p>
+                    <button id="pipReturnBtn" class="btn-pip-return">
+                        <span>Return to video</span>
+                        <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+                    </button>
                 </div>
 
                 <!-- Text Article View Container -->
@@ -178,21 +289,6 @@
                     <button id="openExamPrecheckBtn" class="btn btn-primary btn-lg" style="padding: 0.85rem 2rem; font-size: 1rem; border-radius: var(--radius-full);">
                         <i class="fa-solid fa-circle-play"></i> Start Proctored Exam
                     </button>
-                </div>
-
-                <!-- Custom Clean Video Player Control Bar -->
-                <div class="custom-video-bar" id="customVideoBar">
-                    <button id="customPlayPauseBtn" class="custom-bar-btn" title="Play / Pause Video">
-                        <i id="customPlayIcon" class="fa-solid fa-play"></i>
-                    </button>
-                    <button id="customRewind10Btn" class="custom-bar-btn" title="Rewind 10 Seconds" style="font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 3px; min-width: 44px; padding: 0 6px; border-radius: 20px;">
-                        <i class="fa-solid fa-rotate-left"></i><span style="font-size: 0.68rem;">10s</span>
-                    </button>
-                    <span id="customTimeDisplay" class="custom-time-display">0:00 / 0:00</span>
-                    <div class="custom-scrub-container">
-                        <input type="range" id="customScrubSlider" min="0" max="100" value="0" step="0.1" class="custom-scrub-slider">
-                        <div id="customScrubFill" class="custom-scrub-fill"></div>
-                    </div>
                 </div>
 
                 <!-- Controls & Info -->
