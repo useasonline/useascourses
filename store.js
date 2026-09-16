@@ -688,6 +688,53 @@ class StoreManager {
         return { success: true, student: found };
     }
 
+    loginOrRegisterAbhyasStudent({ name, email, group, sucCode }) {
+        const normSuc = (sucCode || '').trim().toUpperCase();
+        const normEmail = (email || '').trim().toLowerCase();
+
+        let found = (this.students || []).find(s => 
+            (s.sucCode && s.sucCode.toUpperCase() === normSuc) || 
+            (s.email && s.email.toLowerCase() === normEmail)
+        );
+
+        if (!found) {
+            found = {
+                id: 'std-abhyas-' + Date.now(),
+                fullName: name,
+                sucCode: normSuc,
+                email: normEmail,
+                group: group || '',
+                isAbhyas: true,
+                createdAt: Date.now()
+            };
+            this.students.push(found);
+            try {
+                localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(this.students));
+            } catch (e) {}
+        } else {
+            found.fullName = name || found.fullName;
+            found.group = group || found.group;
+            found.sucCode = normSuc || found.sucCode;
+            try {
+                localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(this.students));
+            } catch (e) {}
+        }
+
+        this.currentStudent = found;
+        try {
+            localStorage.setItem(STORAGE_KEYS.CURRENT_STUDENT, JSON.stringify(found));
+        } catch (e) {}
+
+        if (typeof window !== 'undefined' && window.UseasFirebase) {
+            window.UseasFirebase.saveStudentToCloud(found);
+        }
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('student-auth-changed'));
+        }
+        return { success: true, student: found };
+    }
+
     logoutStudent() {
         this.currentStudent = null;
         try {

@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="styles.css">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- EmailJS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -265,6 +267,10 @@
             <div class="auth-tabs">
                 <button id="tabLoginBtn" class="auth-tab-btn active" type="button">Log In</button>
                 <button id="tabSignupBtn" class="auth-tab-btn" type="button">Create Account</button>
+                <button id="tabAbhyasBtn" class="auth-tab-btn abhyas-tab-btn" type="button">
+                    <img src="abhyas-logo.png" alt="Abhyas" class="abhyas-tab-logo">
+                    <span>Abhyas</span>
+                </button>
             </div>
 
             <!-- Form Error Message Box -->
@@ -282,6 +288,15 @@
                 </div>
                 <button type="submit" id="loginSubmitBtn" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
                     <i class="fa-solid fa-right-to-bracket"></i> Log In to Portal
+                </button>
+
+                <div class="auth-divider">
+                    <span>OR CONTINUE WITH</span>
+                </div>
+
+                <button type="button" class="btn-abhyas-option abhyasTriggerBtn">
+                    <img src="abhyas-logo.png" alt="Abhyas" class="abhyas-btn-logo">
+                    <span>Login with Abhyas SUC</span>
                 </button>
             </form>
 
@@ -310,7 +325,103 @@
                 <button type="submit" id="signupSubmitBtn" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
                     <i class="fa-solid fa-user-plus"></i> Create Account & Login
                 </button>
+
+                <div class="auth-divider">
+                    <span>OR SIGN UP WITH</span>
+                </div>
+
+                <button type="button" class="btn-abhyas-option abhyasTriggerBtn">
+                    <img src="abhyas-logo.png" alt="Abhyas" class="abhyas-btn-logo">
+                    <span>Sign Up with Abhyas SUC</span>
+                </button>
             </form>
+
+            <!-- Abhyas Flow Container (hidden by default) -->
+            <div id="abhyasFormContainer" class="auth-form" style="display: none;">
+                <!-- Abhyas Banner Header -->
+                <div class="abhyas-header-card">
+                    <img src="abhyas-logo.png" alt="Abhyas Portal" class="abhyas-card-logo">
+                    <span class="abhyas-tagline">Student Verification Portal</span>
+                </div>
+
+                <!-- Step 1: 10-Digit SUC Input -->
+                <form id="abhyasSucForm" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label"><i class="fa-solid fa-hashtag"></i> 10-Digit Abhyas SUC Code</label>
+                        <input type="text" id="abhyasSucInput" class="form-input abhyas-suc-input" 
+                               placeholder="e.g. 2546640001" 
+                               maxlength="10" 
+                               pattern="[0-9]{10}"
+                               inputmode="numeric"
+                               required>
+                        <span class="input-help-text">Enter your exact 10-digit student SUC code.</span>
+                    </div>
+
+                    <button type="submit" id="abhyasSucSubmitBtn" class="btn btn-abhyas-primary">
+                        <i class="fa-solid fa-magnifying-glass"></i> Submit & Fetch Details
+                    </button>
+                </form>
+
+                <!-- Step 2: Student Details Confirmation -->
+                <div id="abhyasDetailsCard" style="display: none;" class="abhyas-details-card">
+                    <div class="abhyas-details-header">
+                        <i class="fa-solid fa-id-badge"></i> Verify Your Student Details
+                    </div>
+
+                    <div class="abhyas-detail-row">
+                        <span class="detail-label">SUC Code:</span>
+                        <span id="displayAbhyasSuc" class="detail-value-highlight">2546640001</span>
+                    </div>
+                    <div class="abhyas-detail-row">
+                        <span class="detail-label">Full Name:</span>
+                        <span id="displayAbhyasName" class="detail-value">BHANU SRI PRAKASH KANTAMANI</span>
+                    </div>
+                    <div class="abhyas-detail-row">
+                        <span class="detail-label">Email:</span>
+                        <span id="displayAbhyasEmail" class="detail-value">BHANUSRIPRAKASH24@GMAIL.COM</span>
+                    </div>
+                    <div class="abhyas-detail-row">
+                        <span class="detail-label">Course / Group:</span>
+                        <span id="displayAbhyasGroup" class="detail-value">B.Sc - Honours - Computer Science - Code - 1509</span>
+                    </div>
+
+                    <div class="abhyas-actions-row">
+                        <button type="button" id="abhyasBackBtn" class="btn btn-secondary btn-sm">
+                            <i class="fa-solid fa-arrow-left"></i> Change Code
+                        </button>
+                        <button type="button" id="abhyasConfirmBtn" class="btn btn-success">
+                            <i class="fa-solid fa-paper-plane"></i> Confirm & Send OTP
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 3: OTP Verification -->
+                <form id="abhyasOtpForm" style="display: none; flex-direction: column; gap: 1rem;">
+                    <div class="abhyas-otp-info">
+                        <i class="fa-solid fa-envelope-circle-check"></i>
+                        <p>OTP code has been sent to your registered email: <strong id="otpEmailTarget">...</strong></p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label"><i class="fa-solid fa-key"></i> Enter 6-Digit OTP Code</label>
+                        <input type="text" id="abhyasOtpInput" class="form-input abhyas-otp-input" 
+                               placeholder="e.g. 583921" 
+                               maxlength="6" 
+                               pattern="[0-9]{6}"
+                               inputmode="numeric"
+                               required>
+                    </div>
+
+                    <div class="abhyas-actions-row">
+                        <button type="button" id="abhyasResendOtpBtn" class="btn btn-secondary btn-sm">
+                            <i class="fa-solid fa-rotate-right"></i> Resend OTP
+                        </button>
+                        <button type="submit" id="abhyasOtpSubmitBtn" class="btn btn-primary" style="flex: 1;">
+                            <i class="fa-solid fa-shield-check"></i> Verify OTP & Log In
+                        </button>
+                    </div>
+                </form>
+            </div>
 
             <div class="auth-footer">
                 <span id="authSwitchPrompt">Don't have an account? <a href="#" id="authSwitchLink" style="color: var(--primary-dark); font-weight: 700;">Sign Up here</a></span>

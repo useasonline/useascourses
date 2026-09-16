@@ -1604,3 +1604,204 @@ textarea.form-control {
     background: rgba(0, 0, 0, 0.03) !important;
 }
 
+/* Abhyas Authentication Option & Modal Styles */
+.abhyas-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.abhyas-tab-logo {
+    height: 18px;
+    width: auto;
+    object-fit: contain;
+}
+
+.auth-divider {
+    display: flex;
+    align-items: center;
+    margin: 1rem 0;
+    color: var(--text-dim, #94a3b8);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+    content: "";
+    flex: 1;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.auth-divider span {
+    padding: 0 10px;
+}
+
+.btn-abhyas-option {
+    width: 100%;
+    height: 48px;
+    border-radius: 16px;
+    border: 1.5px solid #2563eb;
+    background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+    color: #1e40af;
+    font-size: 0.92rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+    transition: all 0.25s ease;
+}
+
+.btn-abhyas-option:hover {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border-color: #1d4ed8;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.2);
+}
+
+.abhyas-btn-logo {
+    height: 24px;
+    width: auto;
+    object-fit: contain;
+}
+
+.abhyas-header-card {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border: 1px solid #bfdbfe;
+    border-radius: 16px;
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+.abhyas-card-logo {
+    height: 38px;
+    width: auto;
+    object-fit: contain;
+    margin-bottom: 4px;
+}
+
+.abhyas-tagline {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #1d4ed8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.abhyas-suc-input, .abhyas-otp-input {
+    font-size: 1.2rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 2px !important;
+    text-align: center !important;
+    color: #1e3a8a !important;
+}
+
+.btn-abhyas-primary {
+    height: 48px;
+    width: 100%;
+    font-size: 0.95rem;
+    font-weight: 800;
+    border-radius: 16px;
+    border: none;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
+    transition: all 0.25s ease;
+}
+
+.btn-abhyas-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 25px rgba(37, 99, 235, 0.4);
+    background: linear-gradient(135deg, #1d4ed8, #1e40af);
+}
+
+.abhyas-details-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.abhyas-details-header {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 0.6rem;
+    margin-bottom: 0.4rem;
+}
+
+.abhyas-detail-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.detail-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+}
+
+.detail-value {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #0f172a;
+    word-break: break-word;
+}
+
+.detail-value-highlight {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #2563eb;
+    letter-spacing: 1px;
+}
+
+.abhyas-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.abhyas-otp-info {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #065f46;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.abhyas-otp-info i {
+    font-size: 1.2rem;
+    color: #059669;
+    margin-top: 2px;
+}
+
+
