@@ -1629,21 +1629,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const sendPromise = new Promise((resolve) => {
                 if (window.emailjs) {
-                    window.emailjs.send('service_default', 'template_otp', {
+                    window.emailjs.send('useas_otpsender', 'template_5weozdp', {
                         to_name: abhyasCurrentStudent.name,
+                        name: abhyasCurrentStudent.name,
+                        user_name: abhyasCurrentStudent.name,
                         to_email: abhyasCurrentStudent.email,
+                        email: abhyasCurrentStudent.email,
+                        user_email: abhyasCurrentStudent.email,
+                        reply_to: abhyasCurrentStudent.email,
+                        otp: abhyasCurrentOtp,
                         otp_code: abhyasCurrentOtp,
+                        passcode: abhyasCurrentOtp,
+                        message: `Your Abhyas verification OTP code is: ${abhyasCurrentOtp}`,
                         suc_code: abhyasCurrentStudent.sucCode,
                         course_name: abhyasCurrentStudent.group
                     }, 'MJPLwD9idjGcD_L--')
                     .then((res) => {
                         console.log('EmailJS OTP delivery success:', res);
-                        showToast(`✉️ OTP sent to ${abhyasCurrentStudent.email}!`, 'success');
+                        showToast(`✉️ OTP sent successfully to ${abhyasCurrentStudent.email}!`, 'success');
                         resolve();
                     })
                     .catch((err) => {
-                        console.warn('EmailJS service dispatch notification:', err);
-                        showToast(`✉️ OTP Code generated: ${abhyasCurrentOtp} (Sent to ${abhyasCurrentStudent.email})`, 'info');
+                        console.error('EmailJS Delivery Error:', err);
+                        showToast(`OTP delivery issue: ${err.text || err.message || 'Check EmailJS template setup'}. Code: ${abhyasCurrentOtp}`, 'warning');
                         resolve();
                     });
                 } else {
