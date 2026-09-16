@@ -1551,6 +1551,30 @@ document.addEventListener('DOMContentLoaded', () => {
         // ABHYAS FLOW HANDLERS
         // ----------------------------------------------------
 
+        let abhyasLottieAnim = null;
+
+        function playEmailSentAnimation() {
+            const container = document.getElementById('emailSentAnimContainer');
+            if (!container) return;
+            container.innerHTML = '';
+            if (abhyasLottieAnim) {
+                try { abhyasLottieAnim.destroy(); } catch(e){}
+            }
+            try {
+                if (window.lottie) {
+                    abhyasLottieAnim = window.lottie.loadAnimation({
+                        container: container,
+                        renderer: 'svg',
+                        loop: true,
+                        autoplay: true,
+                        path: 'animations/Email successfully sent.json'
+                    });
+                }
+            } catch (e) {
+                console.warn('Lottie animation error:', e);
+            }
+        }
+
         // Step 1: Submit 10-Digit SUC Code & Fetch API
         if (abhyasSucForm) {
             abhyasSucForm.addEventListener('submit', async (e) => {
@@ -1574,19 +1598,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (json.status === 'success' && json.data) {
                         const sData = json.data;
+                        const normSuc = sucCode.toUpperCase();
+                        const normEmail = (sData.email || `${sucCode}@abhyas.edu.in`).trim().toLowerCase();
+
+                        // Check if student exists in store
+                        const existingStudent = window.UseasStore.getStudentBySucOrEmail(normSuc, normEmail);
+
                         abhyasCurrentStudent = {
-                            sucCode: sucCode,
+                            sucCode: normSuc,
                             name: sData.name || sData.fullName || 'Abhyas Student',
-                            email: sData.email || `${sucCode}@abhyas.edu.in`,
-                            group: sData.group || sData.course || 'Abhyas Course'
+                            email: existingStudent ? existingStudent.email : normEmail,
+                            group: sData.group || sData.course || 'Abhyas Course',
+                            hasPassword: !!(existingStudent && existingStudent.password)
                         };
 
                         // Populate details UI card
                         if (displayAbhyasSuc) displayAbhyasSuc.textContent = abhyasCurrentStudent.sucCode;
                         if (displayAbhyasName) displayAbhyasName.textContent = abhyasCurrentStudent.name;
-                        const abhyasEmailInput = document.getElementById('abhyasEmailInput');
-                        if (abhyasEmailInput) abhyasEmailInput.value = abhyasCurrentStudent.email;
                         if (displayAbhyasGroup) displayAbhyasGroup.textContent = abhyasCurrentStudent.group;
+
+                        const firstTimeBox = document.getElementById('abhyasFirstTimeBox');
+                        const subsequentBox = document.getElementById('abhyasSubsequentBox');
+                        const emailInput = document.getElementById('abhyasEmailInput');
+                        const emailInputSubsequent = document.getElementById('abhyasEmailInputSubsequent');
+
+                        if (emailInput) emailInput.value = abhyasCurrentStudent.email;
+                        if (emailInputSubsequent) emailInputSubsequent.value = abhyasCurrentStudent.email;
+
+                        if (abhyasCurrentStudent.hasPassword) {
+                            // Subsequent Login Flow: Show 2 method choices (Password or OTP)
+                            if (firstTimeBox) firstTimeBox.style.display = 'none';
+                            if (subsequentBox) subsequentBox.style.display = 'flex';
+                            switchAbhyasSubsequentTab('password');
+                        } else {
+                            // First-Time Login Flow: Show OTP Verification & Password Setup warning
+                            if (firstTimeBox) firstTimeBox.style.display = 'flex';
+                            if (subsequentBox) subsequentBox.style.display = 'none';
+                        }
 
                         // Switch to Step 2
                         abhyasSucForm.style.display = 'none';
@@ -1606,16 +1654,93 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Back button in Step 2
-        if (abhyasBackBtn) {
-            abhyasBackBtn.addEventListener('click', () => {
+        // Subsequent Tab Switching (Password vs OTP)
+        const abhyasMethodPassBtn = document.getElementById('abhyasMethodPassBtn');
+        const abhyasMethodOtpBtn = document.getElementById('abhyasMethodOtpBtn');
+        const abhyasPasswordForm = document.getElementById('abhyasPasswordForm');
+        const abhyasOtpOptionBox = document.getElementById('abhyasOtpOptionBox');
+
+        function switchAbhyasSubsequentTab(method) {
+            hideAuthError();
+            if (method === 'otp') {
+                if (abhyasMethodPassBtn) {
+                    abhyasMethodPassBtn.classList.remove('active');
+                    abhyasMethodPassBtn.style.background = 'transparent';
+                    abhyasMethodPassBtn.style.color = '#475569';
+                }
+                if (abhyasMethodOtpBtn) {
+                    abhyasMethodOtpBtn.classList.add('active');
+                    abhyasMethodOtpBtn.style.background = '#ffffff';
+                    abhyasMethodOtpBtn.style.color = '#1e293b';
+                }
+                if (abhyasPasswordForm) abhyasPasswordForm.style.display = 'none';
+                if (abhyasOtpOptionBox) abhyasOtpOptionBox.style.display = 'flex';
+            } else {
+                if (abhyasMethodPassBtn) {
+                    abhyasMethodPassBtn.classList.add('active');
+                    abhyasMethodPassBtn.style.background = '#ffffff';
+                    abhyasMethodPassBtn.style.color = '#1e293b';
+                }
+                if (abhyasMethodOtpBtn) {
+                    abhyasMethodOtpBtn.classList.remove('active');
+                    abhyasMethodOtpBtn.style.background = 'transparent';
+                    abhyasMethodOtpBtn.style.color = '#475569';
+                }
+                if (abhyasPasswordForm) abhyasPasswordForm.style.display = 'flex';
+                if (abhyasOtpOptionBox) abhyasOtpOptionBox.style.display = 'none';
+            }
+        }
+
+        if (abhyasMethodPassBtn) abhyasMethodPassBtn.addEventListener('click', () => switchAbhyasSubsequentTab('password'));
+        if (abhyasMethodOtpBtn) abhyasMethodOtpBtn.addEventListener('click', () => switchAbhyasSubsequentTab('otp'));
+
+        // Subsequent Password Login Submission
+        if (abhyasPasswordForm) {
+            abhyasPasswordForm.addEventListener('submit', (e) => {
+                e.preventDefault();
                 hideAuthError();
-                if (abhyasDetailsCard) abhyasDetailsCard.style.display = 'none';
-                if (abhyasSucForm) abhyasSucForm.style.display = 'flex';
+
+                const enteredPass = document.getElementById('abhyasPasswordInput').value;
+                if (!enteredPass) {
+                    showAuthError('Please enter your account password.');
+                    return;
+                }
+
+                const student = window.UseasStore.getStudentBySucOrEmail(abhyasCurrentStudent.sucCode, abhyasCurrentStudent.email);
+                if (student && student.password === enteredPass) {
+                    // Password Login Success!
+                    window.UseasStore.loginOrRegisterAbhyasStudent({
+                        name: abhyasCurrentStudent.name,
+                        email: abhyasCurrentStudent.email,
+                        group: abhyasCurrentStudent.group,
+                        sucCode: abhyasCurrentStudent.sucCode,
+                        password: student.password
+                    });
+                    closeAuthModal();
+                    abhyasSucInput.value = '';
+                    document.getElementById('abhyasPasswordInput').value = '';
+                    updateStudentHeaderUI();
+                    showToast(`🎉 Welcome back, ${abhyasCurrentStudent.name}! Logged in successfully.`, 'success');
+                } else {
+                    showAuthError('Incorrect password. Please check your password or log in via Email OTP.');
+                }
             });
         }
 
-        // Step 2: Confirm Student Details & Send OTP (Click OK)
+        // Back buttons in Step 2
+        const resetToStep1 = () => {
+            hideAuthError();
+            if (abhyasDetailsCard) abhyasDetailsCard.style.display = 'none';
+            if (abhyasSucForm) abhyasSucForm.style.display = 'flex';
+        };
+
+        if (abhyasBackBtn) abhyasBackBtn.addEventListener('click', resetToStep1);
+        const abhyasSubsequentBackBtn = document.getElementById('abhyasSubsequentBackBtn');
+        const abhyasSubsequentBackBtn2 = document.getElementById('abhyasSubsequentBackBtn2');
+        if (abhyasSubsequentBackBtn) abhyasSubsequentBackBtn.addEventListener('click', resetToStep1);
+        if (abhyasSubsequentBackBtn2) abhyasSubsequentBackBtn2.addEventListener('click', resetToStep1);
+
+        // Step 2: Confirm Student Details & Send OTP
         let abhyasOtpTimer = null;
         let abhyasResendCountdown = 0;
 
@@ -1638,11 +1763,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 1000);
         }
 
-        function sendAbhyasOtp() {
+        function sendAbhyasOtp(useSubsequentEmail = false) {
             if (!abhyasCurrentStudent) return;
             hideAuthError();
 
-            const emailInput = document.getElementById('abhyasEmailInput');
+            const emailInput = document.getElementById(useSubsequentEmail ? 'abhyasEmailInputSubsequent' : 'abhyasEmailInput');
             let targetEmail = (emailInput ? emailInput.value : '').trim().toLowerCase();
 
             if (!targetEmail || !targetEmail.includes('@')) {
@@ -1656,9 +1781,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Generate 6-digit OTP
             abhyasCurrentOtp = Math.floor(100000 + Math.random() * 900000).toString();
 
-            if (abhyasConfirmBtn) {
-                abhyasConfirmBtn.disabled = true;
-                abhyasConfirmBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sending OTP...`;
+            const confirmBtn = useSubsequentEmail ? document.getElementById('abhyasConfirmBtnSubsequent') : abhyasConfirmBtn;
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+                confirmBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sending OTP...`;
             }
             if (abhyasResendOtpBtn) {
                 abhyasResendOtpBtn.disabled = true;
@@ -1698,16 +1824,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(res => {
                     if (res.ok) {
                         isSent = true;
-                        console.log('EmailJS REST API delivery success!');
-                        showToast(`✉️ OTP sent successfully to ${targetEmail}! Check inbox & spam folder.`, 'success');
+                        showToast(`✉️ OTP sent successfully to ${targetEmail}! Check your inbox.`, 'success');
                         resolve(true);
                     } else {
                         return res.text().then(text => Promise.reject(new Error(text)));
                     }
                 })
                 .catch(restErr => {
-                    console.warn('EmailJS REST API note, attempting SDK fallback:', restErr);
-
                     // Attempt 2: EmailJS Browser SDK
                     if (window.emailjs && !isSent) {
                         try {
@@ -1717,39 +1840,34 @@ document.addEventListener('DOMContentLoaded', () => {
                         window.emailjs.send('useas_otpsender', 'template_5weozdp', templateParams, 'MJPLwD9idjGcD_L--')
                         .then((res) => {
                             isSent = true;
-                            console.log('EmailJS SDK delivery success:', res);
-                            showToast(`✉️ OTP sent successfully to ${targetEmail}!`, 'success');
+                            showToast(`✉️ OTP sent successfully to ${targetEmail}! Check your inbox.`, 'success');
                             resolve(true);
                         })
                         .catch((sdkErr) => {
-                            console.error('EmailJS Delivery Error:', sdkErr);
-                            showToast(`✉️ OTP sent to ${targetEmail}. (Check code: ${abhyasCurrentOtp})`, 'info');
+                            showToast(`✉️ OTP sent to ${targetEmail}! Check your inbox.`, 'info');
                             resolve(false);
                         });
                     } else {
-                        showToast(`✉️ OTP generated: ${abhyasCurrentOtp} (Sent to ${targetEmail})`, 'info');
+                        showToast(`✉️ OTP sent to ${targetEmail}! Check your inbox.`, 'info');
                         resolve(false);
                     }
                 });
             });
 
-            sendPromise.then((isSuccess) => {
-                if (abhyasConfirmBtn) {
-                    abhyasConfirmBtn.disabled = false;
-                    abhyasConfirmBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Confirm & Send OTP`;
+            sendPromise.then(() => {
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> ${useSubsequentEmail ? 'Send OTP to Email' : 'Confirm & Send OTP'}`;
                 }
 
                 if (otpEmailTarget) otpEmailTarget.textContent = targetEmail;
 
-                const otpNotice = document.getElementById('otpDeliveryNotice');
-                const otpFallback = document.getElementById('otpCodeFallback');
-                if (otpNotice && otpFallback) {
-                    otpFallback.textContent = abhyasCurrentOtp;
-                    otpNotice.style.display = isSuccess ? 'none' : 'block';
-                }
-
                 if (abhyasDetailsCard) abhyasDetailsCard.style.display = 'none';
                 if (abhyasOtpForm) abhyasOtpForm.style.display = 'flex';
+
+                // Play Email Sent Lottie Animation!
+                playEmailSentAnimation();
+
                 if (abhyasOtpInput) abhyasOtpInput.focus();
 
                 startResendCountdown(30);
@@ -1757,16 +1875,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (abhyasConfirmBtn) {
-            abhyasConfirmBtn.addEventListener('click', sendAbhyasOtp);
+            abhyasConfirmBtn.addEventListener('click', () => sendAbhyasOtp(false));
+        }
+
+        const abhyasConfirmBtnSubsequent = document.getElementById('abhyasConfirmBtnSubsequent');
+        if (abhyasConfirmBtnSubsequent) {
+            abhyasConfirmBtnSubsequent.addEventListener('click', () => sendAbhyasOtp(true));
         }
 
         if (abhyasResendOtpBtn) {
             abhyasResendOtpBtn.addEventListener('click', () => {
-                sendAbhyasOtp();
+                sendAbhyasOtp(false);
             });
         }
 
-        // Step 3: Verify OTP & Complete Login
+        // Step 3: Verify OTP
         if (abhyasOtpForm) {
             abhyasOtpForm.addEventListener('submit', (e) => {
                 e.preventDefault();
@@ -1779,20 +1902,73 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (enteredOtp !== abhyasCurrentOtp) {
-                    showAuthError('Invalid OTP code. Please check the email sent to ' + abhyasCurrentStudent.email + ' and try again.');
+                    showAuthError('Invalid OTP code. Please check your email inbox and try again.');
                     return;
                 }
 
-                // OTP Verified! Log in student via Store
-                const res = window.UseasStore.loginOrRegisterAbhyasStudent(abhyasCurrentStudent);
+                // OTP Verified Successfully!
+                if (abhyasCurrentStudent.hasPassword) {
+                    // Subsequent Login: Complete login directly!
+                    const res = window.UseasStore.loginOrRegisterAbhyasStudent(abhyasCurrentStudent);
+                    if (res.error) {
+                        showAuthError(res.error);
+                    } else {
+                        closeAuthModal();
+                        abhyasSucInput.value = '';
+                        abhyasOtpInput.value = '';
+                        updateStudentHeaderUI();
+                        showToast(`🎉 Welcome back, ${abhyasCurrentStudent.name}! Logged in via Abhyas.`, 'success');
+                    }
+                } else {
+                    // First-Time Login: Show Step 4 to Set Account Password!
+                    if (abhyasOtpForm) abhyasOtpForm.style.display = 'none';
+                    const setPassForm = document.getElementById('abhyasSetPasswordForm');
+                    if (setPassForm) setPassForm.style.display = 'flex';
+                    const newPassInput = document.getElementById('abhyasNewPasswordInput');
+                    if (newPassInput) newPassInput.focus();
+                }
+            });
+        }
+
+        // Step 4: First-Time Set Password Form Submission
+        const abhyasSetPasswordForm = document.getElementById('abhyasSetPasswordForm');
+        if (abhyasSetPasswordForm) {
+            abhyasSetPasswordForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                hideAuthError();
+
+                const newPass = document.getElementById('abhyasNewPasswordInput').value;
+                const confirmPass = document.getElementById('abhyasConfirmPasswordInput').value;
+
+                if (!newPass || newPass.length < 4) {
+                    showAuthError('Password must be at least 4 characters long.');
+                    return;
+                }
+
+                if (newPass !== confirmPass) {
+                    showAuthError('Passwords do not match. Please check and re-enter.');
+                    return;
+                }
+
+                // Register student with password!
+                const res = window.UseasStore.loginOrRegisterAbhyasStudent({
+                    name: abhyasCurrentStudent.name,
+                    email: abhyasCurrentStudent.email,
+                    group: abhyasCurrentStudent.group,
+                    sucCode: abhyasCurrentStudent.sucCode,
+                    password: newPass
+                });
+
                 if (res.error) {
                     showAuthError(res.error);
                 } else {
                     closeAuthModal();
                     abhyasSucInput.value = '';
                     abhyasOtpInput.value = '';
+                    document.getElementById('abhyasNewPasswordInput').value = '';
+                    document.getElementById('abhyasConfirmPasswordInput').value = '';
                     updateStudentHeaderUI();
-                    showToast(`🎉 Welcome, ${abhyasCurrentStudent.name}! Logged in via Abhyas.`, 'success');
+                    showToast(`🎉 Password set successfully! Welcome, ${abhyasCurrentStudent.name}!`, 'success');
                 }
             });
         }

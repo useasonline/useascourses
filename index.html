@@ -362,48 +362,103 @@
                     </button>
                 </form>
 
-                <!-- Step 2: Student Details Confirmation -->
+                <!-- Step 2: Student Details Confirmation & Login Choices -->
                 <div id="abhyasDetailsCard" style="display: none;" class="abhyas-details-card">
                     <div class="abhyas-details-header">
-                        <i class="fa-solid fa-id-badge"></i> Verify Your Student Details
+                        <i class="fa-solid fa-id-badge"></i> Student Details Verification
                     </div>
 
                     <div class="abhyas-detail-row">
                         <span class="detail-label">SUC Code:</span>
-                        <span id="displayAbhyasSuc" class="detail-value-highlight">2546640001</span>
+                        <span id="displayAbhyasSuc" class="detail-value-highlight">...</span>
                     </div>
                     <div class="abhyas-detail-row">
                         <span class="detail-label">Full Name:</span>
-                        <span id="displayAbhyasName" class="detail-value">BHANU SRI PRAKASH KANTAMANI</span>
-                    </div>
-                    <div class="abhyas-detail-row" style="gap: 4px;">
-                        <label class="detail-label" for="abhyasEmailInput"><i class="fa-solid fa-envelope"></i> Delivery Email Address:</label>
-                        <input type="email" id="abhyasEmailInput" class="form-input" style="padding: 9px 12px; font-weight: 600; font-size: 0.95rem; border: 1.5px solid var(--primary-color, #2563eb); border-radius: 8px; width: 100%;" placeholder="Enter student email address" required>
-                        <small style="color: #64748b; font-size: 0.78rem;"><i class="fa-solid fa-circle-info"></i> Confirm or update your email address above to receive the 6-digit OTP code.</small>
+                        <span id="displayAbhyasName" class="detail-value">...</span>
                     </div>
                     <div class="abhyas-detail-row">
                         <span class="detail-label">Course / Group:</span>
-                        <span id="displayAbhyasGroup" class="detail-value">B.Sc - Honours - Computer Science - Code - 1509</span>
+                        <span id="displayAbhyasGroup" class="detail-value">...</span>
                     </div>
 
-                    <div class="abhyas-actions-row">
-                        <button type="button" id="abhyasBackBtn" class="btn btn-secondary btn-sm">
-                            <i class="fa-solid fa-arrow-left"></i> Change Code
-                        </button>
-                        <button type="button" id="abhyasConfirmBtn" class="btn btn-success" style="flex: 1;">
-                            <i class="fa-solid fa-paper-plane"></i> Confirm & Send OTP
-                        </button>
+                    <!-- Section 2A: First-Time Setup (No password set yet) -->
+                    <div id="abhyasFirstTimeBox" style="display: none; flex-direction: column; gap: 0.75rem; border-top: 1px dashed #cbd5e1; padding-top: 0.75rem; margin-top: 0.25rem;">
+                        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 12px; font-size: 0.8rem; color: #1e40af; display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-wand-magic-sparkles" style="color: #2563eb; font-size: 1rem;"></i>
+                            <span>First-Time Login: Send OTP to your email to verify and create your account password.</span>
+                        </div>
+
+                        <div class="abhyas-detail-row" style="gap: 4px;">
+                            <label class="detail-label" for="abhyasEmailInput"><i class="fa-solid fa-envelope"></i> Delivery Email Address:</label>
+                            <input type="email" id="abhyasEmailInput" class="form-input" style="padding: 9px 12px; font-weight: 600; font-size: 0.95rem; border: 1.5px solid var(--primary-color, #2563eb); border-radius: 8px; width: 100%;" placeholder="Enter student email address" required>
+                            <small style="color: #64748b; font-size: 0.76rem;"><i class="fa-solid fa-circle-info"></i> Confirm or update your email address above to receive the 6-digit OTP code.</small>
+                        </div>
+
+                        <div class="abhyas-actions-row">
+                            <button type="button" id="abhyasBackBtn" class="btn btn-secondary btn-sm">
+                                <i class="fa-solid fa-arrow-left"></i> Change Code
+                            </button>
+                            <button type="button" id="abhyasConfirmBtn" class="btn btn-success" style="flex: 1;">
+                                <i class="fa-solid fa-paper-plane"></i> Confirm & Send OTP
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Section 2B: Subsequent Login Options (Password already set) -->
+                    <div id="abhyasSubsequentBox" style="display: none; flex-direction: column; gap: 0.85rem; border-top: 1px dashed #cbd5e1; padding-top: 0.75rem; margin-top: 0.25rem;">
+                        <div style="display: flex; background: #e2e8f0; border-radius: 8px; padding: 3px; gap: 4px;">
+                            <button type="button" id="abhyasMethodPassBtn" class="btn btn-sm active" style="flex: 1; font-weight: 700; padding: 6px 10px;">
+                                <i class="fa-solid fa-key"></i> Log In with Password
+                            </button>
+                            <button type="button" id="abhyasMethodOtpBtn" class="btn btn-sm" style="flex: 1; font-weight: 700; padding: 6px 10px; background: transparent; color: #475569;">
+                                <i class="fa-solid fa-envelope"></i> Log In with Email OTP
+                            </button>
+                        </div>
+
+                        <!-- Option 1: Password Form -->
+                        <form id="abhyasPasswordForm" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="font-size: 0.82rem;"><i class="fa-solid fa-lock"></i> Enter Account Password</label>
+                                <input type="password" id="abhyasPasswordInput" class="form-input" placeholder="Enter your password" required>
+                            </div>
+                            <div class="abhyas-actions-row">
+                                <button type="button" id="abhyasSubsequentBackBtn" class="btn btn-secondary btn-sm">
+                                    <i class="fa-solid fa-arrow-left"></i> Back
+                                </button>
+                                <button type="submit" id="abhyasPasswordSubmitBtn" class="btn btn-primary" style="flex: 1;">
+                                    <i class="fa-solid fa-right-to-bracket"></i> Log In
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Option 2: OTP Email Form -->
+                        <div id="abhyasOtpOptionBox" style="display: none; flex-direction: column; gap: 0.75rem;">
+                            <div class="abhyas-detail-row" style="gap: 4px;">
+                                <label class="detail-label" for="abhyasEmailInputSubsequent"><i class="fa-solid fa-envelope"></i> Delivery Email Address:</label>
+                                <input type="email" id="abhyasEmailInputSubsequent" class="form-input" style="padding: 9px 12px; font-weight: 600; font-size: 0.95rem; border: 1.5px solid var(--primary-color, #2563eb); border-radius: 8px; width: 100%;" placeholder="Enter student email address" required>
+                            </div>
+                            <div class="abhyas-actions-row">
+                                <button type="button" id="abhyasSubsequentBackBtn2" class="btn btn-secondary btn-sm">
+                                    <i class="fa-solid fa-arrow-left"></i> Back
+                                </button>
+                                <button type="button" id="abhyasConfirmBtnSubsequent" class="btn btn-success" style="flex: 1;">
+                                    <i class="fa-solid fa-paper-plane"></i> Send OTP to Email
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Step 3: OTP Verification -->
+                <!-- Step 3: OTP Verification Form with Lottie Animation -->
                 <form id="abhyasOtpForm" style="display: none; flex-direction: column; gap: 1rem;">
-                    <div class="abhyas-otp-info">
+                    <div id="emailSentAnimContainer" style="width: 100%; height: 150px; display: flex; align-items: center; justify-content: center; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden;"></div>
+
+                    <div class="abhyas-otp-info" style="margin-top: -0.25rem;">
                         <i class="fa-solid fa-envelope-circle-check"></i>
                         <div style="flex: 1;">
-                            <p style="margin: 0; font-weight: 600;">OTP code has been sent to:</p>
-                            <p style="margin: 2px 0 0 0; word-break: break-all; color: #047857;"><strong id="otpEmailTarget">...</strong></p>
-                            <p style="margin: 4px 0 0 0; font-size: 0.78rem; opacity: 0.9;">Please check your Inbox and Spam/Junk folder.</p>
+                            <p style="margin: 0; font-weight: 700; color: #065f46;">Email Successfully Sent!</p>
+                            <p style="margin: 2px 0 0 0; font-size: 0.82rem; word-break: break-all; color: #047857;">OTP code has been sent to <strong id="otpEmailTarget">...</strong></p>
+                            <p style="margin: 4px 0 0 0; font-size: 0.76rem; opacity: 0.85;">Please check your Inbox and Spam/Junk folder.</p>
                         </div>
                     </div>
 
@@ -417,18 +472,39 @@
                                required>
                     </div>
 
-                    <div id="otpDeliveryNotice" style="display: none; background: #fffbe6; border: 1px solid #ffe58f; border-radius: 8px; padding: 10px; font-size: 0.84rem; color: #856404;">
-                        <i class="fa-solid fa-triangle-exclamation"></i> OTP Delivery Backup Active. Code: <strong id="otpCodeFallback" style="letter-spacing: 1px; font-size: 1.05rem; color: #1e3a8a; margin-left: 4px;"></strong>
-                    </div>
-
                     <div class="abhyas-actions-row">
                         <button type="button" id="abhyasResendOtpBtn" class="btn btn-secondary btn-sm">
                             <i class="fa-solid fa-rotate-right"></i> Resend OTP
                         </button>
                         <button type="submit" id="abhyasOtpSubmitBtn" class="btn btn-primary" style="flex: 1;">
-                            <i class="fa-solid fa-shield-check"></i> Verify OTP & Log In
+                            <i class="fa-solid fa-shield-check"></i> Verify OTP
                         </button>
                     </div>
+                </form>
+
+                <!-- Step 4: First-Time Set Password Form -->
+                <form id="abhyasSetPasswordForm" style="display: none; flex-direction: column; gap: 1rem;">
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 12px; color: #166534; display: flex; align-items: flex-start; gap: 10px;">
+                        <i class="fa-solid fa-shield-check" style="font-size: 1.4rem; color: #16a34a; margin-top: 2px;"></i>
+                        <div>
+                            <strong style="font-size: 0.95rem;">OTP Verified Successfully!</strong>
+                            <p style="margin: 3px 0 0 0; font-size: 0.82rem;">Create a password for your account so you can quickly log in next time using Password or OTP.</p>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label"><i class="fa-solid fa-lock"></i> Create Account Password</label>
+                        <input type="password" id="abhyasNewPasswordInput" class="form-input" placeholder="Enter new password (min 4 characters)" required minlength="4">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label"><i class="fa-solid fa-lock-keyhole"></i> Confirm Password</label>
+                        <input type="password" id="abhyasConfirmPasswordInput" class="form-input" placeholder="Re-enter password to confirm" required minlength="4">
+                    </div>
+
+                    <button type="submit" id="abhyasSavePasswordBtn" class="btn btn-success" style="height: 44px; font-weight: 700;">
+                        <i class="fa-solid fa-check-circle"></i> Save Password & Complete Login
+                    </button>
                 </form>
             </div>
 

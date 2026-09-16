@@ -688,7 +688,7 @@ class StoreManager {
         return { success: true, student: found };
     }
 
-    loginOrRegisterAbhyasStudent({ name, email, group, sucCode }) {
+    loginOrRegisterAbhyasStudent({ name, email, group, sucCode, password }) {
         const normSuc = (sucCode || '').trim().toUpperCase();
         const normEmail = (email || '').trim().toLowerCase();
 
@@ -707,21 +707,18 @@ class StoreManager {
                 isAbhyas: true,
                 createdAt: Date.now()
             };
+            if (password) found.password = password;
             this.students.push(found);
-            try {
-                localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(this.students));
-            } catch (e) {}
         } else {
             found.fullName = name || found.fullName;
             found.group = group || found.group;
             found.sucCode = normSuc || found.sucCode;
-            try {
-                localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(this.students));
-            } catch (e) {}
+            if (password) found.password = password;
         }
 
         this.currentStudent = found;
         try {
+            localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(this.students));
             localStorage.setItem(STORAGE_KEYS.CURRENT_STUDENT, JSON.stringify(found));
         } catch (e) {}
 
@@ -733,6 +730,16 @@ class StoreManager {
             window.dispatchEvent(new CustomEvent('student-auth-changed'));
         }
         return { success: true, student: found };
+    }
+
+    getStudentBySucOrEmail(sucCode, email) {
+        const normSuc = (sucCode || '').trim().toUpperCase();
+        const normEmail = (email || '').trim().toLowerCase();
+
+        return (this.students || []).find(s => 
+            (s.sucCode && s.sucCode.toUpperCase() === normSuc) || 
+            (s.email && s.email.toLowerCase() === normEmail)
+        ) || null;
     }
 
     logoutStudent() {
