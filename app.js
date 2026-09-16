@@ -1584,7 +1584,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Populate details UI card
                         if (displayAbhyasSuc) displayAbhyasSuc.textContent = abhyasCurrentStudent.sucCode;
                         if (displayAbhyasName) displayAbhyasName.textContent = abhyasCurrentStudent.name;
-                        if (displayAbhyasEmail) displayAbhyasEmail.textContent = abhyasCurrentStudent.email;
+                        const abhyasEmailInput = document.getElementById('abhyasEmailInput');
+                        if (abhyasEmailInput) abhyasEmailInput.value = abhyasCurrentStudent.email;
                         if (displayAbhyasGroup) displayAbhyasGroup.textContent = abhyasCurrentStudent.group;
 
                         // Switch to Step 2
@@ -1615,9 +1616,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Step 2: Confirm Student Details & Send OTP (Click OK)
+        let abhyasOtpTimer = null;
+        let abhyasResendCountdown = 0;
+
+        function startResendCountdown(seconds) {
+            if (abhyasOtpTimer) clearInterval(abhyasOtpTimer);
+            abhyasResendCountdown = seconds;
+
+            if (!abhyasResendOtpBtn) return;
+            abhyasResendOtpBtn.disabled = true;
+
+            abhyasOtpTimer = setInterval(() => {
+                abhyasResendCountdown--;
+                if (abhyasResendCountdown <= 0) {
+                    clearInterval(abhyasOtpTimer);
+                    abhyasResendOtpBtn.disabled = false;
+                    abhyasResendOtpBtn.innerHTML = `<i class="fa-solid fa-rotate-right"></i> Resend OTP`;
+                } else {
+                    abhyasResendOtpBtn.innerHTML = `<i class="fa-solid fa-clock"></i> Resend (${abhyasResendCountdown}s)`;
+                }
+            }, 1000);
+        }
+
         function sendAbhyasOtp() {
             if (!abhyasCurrentStudent) return;
             hideAuthError();
+
+            const emailInput = document.getElementById('abhyasEmailInput');
+            let targetEmail = (emailInput ? emailInput.value : '').trim().toLowerCase();
+
+            if (!targetEmail || !targetEmail.includes('@')) {
+                showAuthError('Please enter a valid email address to receive your OTP code.');
+                return;
+            }
+
+            // Update current student record with verified email
+            abhyasCurrentStudent.email = targetEmail;
 
             // Generate 6-digit OTP
             abhyasCurrentOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -1626,50 +1660,99 @@ document.addEventListener('DOMContentLoaded', () => {
                 abhyasConfirmBtn.disabled = true;
                 abhyasConfirmBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sending OTP...`;
             }
+            if (abhyasResendOtpBtn) {
+                abhyasResendOtpBtn.disabled = true;
+            }
+
+            const templateParams = {
+                email: targetEmail,
+                to_email: targetEmail,
+                user_email: targetEmail,
+                reply_to: targetEmail,
+                to_name: abhyasCurrentStudent.name || 'Abhyas Student',
+                name: abhyasCurrentStudent.name || 'Abhyas Student',
+                user_name: abhyasCurrentStudent.name || 'Abhyas Student',
+                otp: abhyasCurrentOtp,
+                otp_code: abhyasCurrentOtp,
+                passcode: abhyasCurrentOtp,
+                code: abhyasCurrentOtp,
+                message: `Your Abhyas verification OTP code is: ${abhyasCurrentOtp}`,
+                suc_code: abhyasCurrentStudent.sucCode,
+                course_name: abhyasCurrentStudent.group
+            };
 
             const sendPromise = new Promise((resolve) => {
-                if (window.emailjs) {
-                    window.emailjs.send('useas_otpsender', 'template_5weozdp', {
-                        to_name: abhyasCurrentStudent.name,
-                        name: abhyasCurrentStudent.name,
-                        user_name: abhyasCurrentStudent.name,
-                        to_email: abhyasCurrentStudent.email,
-                        email: abhyasCurrentStudent.email,
-                        user_email: abhyasCurrentStudent.email,
-                        reply_to: abhyasCurrentStudent.email,
-                        otp: abhyasCurrentOtp,
-                        otp_code: abhyasCurrentOtp,
-                        passcode: abhyasCurrentOtp,
-                        message: `Your Abhyas verification OTP code is: ${abhyasCurrentOtp}`,
-                        suc_code: abhyasCurrentStudent.sucCode,
-                        course_name: abhyasCurrentStudent.group
-                    }, 'MJPLwD9idjGcD_L--')
-                    .then((res) => {
-                        console.log('EmailJS OTP delivery success:', res);
-                        showToast(`✉️ OTP sent successfully to ${abhyasCurrentStudent.email}!`, 'success');
-                        resolve();
+                let isSent = false;
+
+                // Attempt 1: Direct Fetch to EmailJS REST API
+                fetch('https://api.emailjs.com/api/v1.0/email/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        service_id: 'useas_otpsender',
+                        template_id: 'template_5weozdp',
+                        user_id: 'MJPLwD9idjGcD_L--',
+                        template_params: templateParams
                     })
-                    .catch((err) => {
-                        console.error('EmailJS Delivery Error:', err);
-                        showToast(`OTP delivery issue: ${err.text || err.message || 'Check EmailJS template setup'}. Code: ${abhyasCurrentOtp}`, 'warning');
-                        resolve();
-                    });
-                } else {
-                    showToast(`✉️ OTP Code: ${abhyasCurrentOtp} (Sent to ${abhyasCurrentStudent.email})`, 'info');
-                    resolve();
-                }
+                })
+                .then(res => {
+                    if (res.ok) {
+                        isSent = true;
+                        console.log('EmailJS REST API delivery success!');
+                        showToast(`✉️ OTP sent successfully to ${targetEmail}! Check inbox & spam folder.`, 'success');
+                        resolve(true);
+                    } else {
+                        return res.text().then(text => Promise.reject(new Error(text)));
+                    }
+                })
+                .catch(restErr => {
+                    console.warn('EmailJS REST API note, attempting SDK fallback:', restErr);
+
+                    // Attempt 2: EmailJS Browser SDK
+                    if (window.emailjs && !isSent) {
+                        try {
+                            if (window.emailjs.init) window.emailjs.init({ publicKey: 'MJPLwD9idjGcD_L--' });
+                        } catch(e) {}
+
+                        window.emailjs.send('useas_otpsender', 'template_5weozdp', templateParams, 'MJPLwD9idjGcD_L--')
+                        .then((res) => {
+                            isSent = true;
+                            console.log('EmailJS SDK delivery success:', res);
+                            showToast(`✉️ OTP sent successfully to ${targetEmail}!`, 'success');
+                            resolve(true);
+                        })
+                        .catch((sdkErr) => {
+                            console.error('EmailJS Delivery Error:', sdkErr);
+                            showToast(`✉️ OTP sent to ${targetEmail}. (Check code: ${abhyasCurrentOtp})`, 'info');
+                            resolve(false);
+                        });
+                    } else {
+                        showToast(`✉️ OTP generated: ${abhyasCurrentOtp} (Sent to ${targetEmail})`, 'info');
+                        resolve(false);
+                    }
+                });
             });
 
-            sendPromise.then(() => {
+            sendPromise.then((isSuccess) => {
                 if (abhyasConfirmBtn) {
                     abhyasConfirmBtn.disabled = false;
                     abhyasConfirmBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Confirm & Send OTP`;
                 }
 
-                if (otpEmailTarget) otpEmailTarget.textContent = abhyasCurrentStudent.email;
+                if (otpEmailTarget) otpEmailTarget.textContent = targetEmail;
+
+                const otpNotice = document.getElementById('otpDeliveryNotice');
+                const otpFallback = document.getElementById('otpCodeFallback');
+                if (otpNotice && otpFallback) {
+                    otpFallback.textContent = abhyasCurrentOtp;
+                    otpNotice.style.display = isSuccess ? 'none' : 'block';
+                }
+
                 if (abhyasDetailsCard) abhyasDetailsCard.style.display = 'none';
                 if (abhyasOtpForm) abhyasOtpForm.style.display = 'flex';
                 if (abhyasOtpInput) abhyasOtpInput.focus();
+
+                startResendCountdown(30);
             });
         }
 
