@@ -565,30 +565,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 650);
     }
 
-    // Toast Notification helper
+    // Toast Notification helper (Centered Middle Screen Popup)
     function showToast(message, type = 'info') {
         const container = document.getElementById('toastContainer');
         if (!container) return;
 
         const toast = document.createElement('div');
-        toast.className = 'toast';
-        
-        const icon = type === 'success' ? 'fa-circle-check' : 'fa-circle-info';
-        const color = type === 'success' ? 'var(--accent-green)' : 'var(--primary-dark)';
+        toast.className = `toast toast-${type}`;
+
+        let iconClass = 'fa-circle-info';
+        if (type === 'success') iconClass = 'fa-circle-check';
+        else if (type === 'warning') iconClass = 'fa-triangle-exclamation';
+        else if (type === 'danger' || type === 'error') iconClass = 'fa-circle-xmark';
 
         toast.innerHTML = `
-            <i class="fa-solid ${icon}" style="color: ${color}; font-size: 1.1rem;"></i>
+            <div class="toast-icon-wrapper">
+                <i class="fa-solid ${iconClass}"></i>
+            </div>
             <span>${message}</span>
         `;
 
         container.appendChild(toast);
 
         setTimeout(() => {
-            toast.style.opacity = '0';
-            toast.style.transform = 'translateX(100%)';
-            toast.style.transition = 'all 0.3s ease';
+            toast.classList.add('toast-hiding');
             setTimeout(() => toast.remove(), 300);
-        }, 3000);
+        }, 3200);
     }
 
     // Render Course Cards
