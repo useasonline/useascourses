@@ -291,17 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleMouseMoveControls() {
         const controlsBar = document.getElementById('customVideoControlsBar');
         if (!controlsBar) return;
-
         controlsBar.classList.remove('controls-hidden');
-        if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
-
-        if (isCurrentlyPlaying) {
-            controlsHideTimeout = setTimeout(() => {
-                controlsBar.classList.add('controls-hidden');
-                const dropdown = document.getElementById('speedMenuDropdown');
-                if (dropdown) dropdown.style.display = 'none';
-            }, 2500);
-        }
     }
 
     // Custom Player Time Tracking

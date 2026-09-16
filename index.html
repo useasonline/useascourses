@@ -165,66 +165,66 @@
                                 <i id="playPauseIcon" class="fa-solid fa-play"></i>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Coursera Custom Video Controls Bar -->
-                        <div id="customVideoControlsBar" class="custom-video-controls-bar">
-                            <!-- Scrub / Progress Bar -->
-                            <div id="customScrubContainer" class="custom-scrub-container">
-                                <input type="range" id="customScrubSlider" min="0" max="100" value="0" step="0.1" class="custom-scrub-slider">
-                                <div id="customScrubFill" class="custom-scrub-fill"></div>
+                    <!-- Coursera Custom Video Controls Bar -->
+                    <div id="customVideoControlsBar" class="custom-video-controls-bar">
+                        <!-- Scrub / Progress Bar -->
+                        <div id="customScrubContainer" class="custom-scrub-container">
+                            <input type="range" id="customScrubSlider" min="0" max="100" value="0" step="0.1" class="custom-scrub-slider">
+                            <div id="customScrubFill" class="custom-scrub-fill"></div>
+                        </div>
+
+                        <!-- Controls Row -->
+                        <div class="controls-row">
+                            <!-- Left Group -->
+                            <div class="controls-left-group">
+                                <button id="customPlayPauseBtn" class="ctrl-btn" title="Play / Pause">
+                                    <i id="customPlayIcon" class="fa-solid fa-play"></i>
+                                </button>
+
+                                <div class="volume-group">
+                                    <button id="customMuteBtn" class="ctrl-btn" title="Mute / Unmute">
+                                        <i id="customMuteIcon" class="fa-solid fa-volume-high"></i>
+                                    </button>
+                                    <input type="range" id="customVolumeSlider" min="0" max="1" step="0.05" value="1" class="volume-slider">
+                                </div>
+
+                                <button id="customRewind10Btn" class="ctrl-btn-text" title="Rewind 10 Seconds">
+                                    <i class="fa-solid fa-rotate-left"></i> 10s
+                                </button>
+
+                                <span id="customTimeDisplay" class="custom-time-display">0:00 / 0:00</span>
+
+                                <button id="customForward10Btn" class="ctrl-btn-text" title="Forward 10 Seconds">
+                                    10s <i class="fa-solid fa-rotate-right"></i>
+                                </button>
                             </div>
 
-                            <!-- Controls Row -->
-                            <div class="controls-row">
-                                <!-- Left Group -->
-                                <div class="controls-left-group">
-                                    <button id="customPlayPauseBtn" class="ctrl-btn" title="Play / Pause">
-                                        <i id="customPlayIcon" class="fa-solid fa-play"></i>
-                                    </button>
-
-                                    <div class="volume-group">
-                                        <button id="customMuteBtn" class="ctrl-btn" title="Mute / Unmute">
-                                            <i id="customMuteIcon" class="fa-solid fa-volume-high"></i>
-                                        </button>
-                                        <input type="range" id="customVolumeSlider" min="0" max="1" step="0.05" value="1" class="volume-slider">
+                            <!-- Right Group -->
+                            <div class="controls-right-group">
+                                <div class="speed-menu-container">
+                                    <button id="speedMenuBtn" class="speed-btn" title="Playback Speed">1x</button>
+                                    <div id="speedMenuDropdown" class="speed-menu-dropdown" style="display: none;">
+                                        <div class="speed-option" data-speed="0.75">0.75x</div>
+                                        <div class="speed-option active" data-speed="1">1x (Normal)</div>
+                                        <div class="speed-option" data-speed="1.25">1.25x</div>
+                                        <div class="speed-option" data-speed="1.5">1.5x</div>
+                                        <div class="speed-option" data-speed="2">2x</div>
                                     </div>
-
-                                    <button id="customRewind10Btn" class="ctrl-btn-text" title="Rewind 10 Seconds">
-                                        <i class="fa-solid fa-rotate-left"></i> 10s
-                                    </button>
-
-                                    <span id="customTimeDisplay" class="custom-time-display">0:00 / 0:00</span>
-
-                                    <button id="customForward10Btn" class="ctrl-btn-text" title="Forward 10 Seconds">
-                                        10s <i class="fa-solid fa-rotate-right"></i>
-                                    </button>
                                 </div>
 
-                                <!-- Right Group -->
-                                <div class="controls-right-group">
-                                    <div class="speed-menu-container">
-                                        <button id="speedMenuBtn" class="speed-btn" title="Playback Speed">1x</button>
-                                        <div id="speedMenuDropdown" class="speed-menu-dropdown" style="display: none;">
-                                            <div class="speed-option" data-speed="0.75">0.75x</div>
-                                            <div class="speed-option active" data-speed="1">1x (Normal)</div>
-                                            <div class="speed-option" data-speed="1.25">1.25x</div>
-                                            <div class="speed-option" data-speed="1.5">1.5x</div>
-                                            <div class="speed-option" data-speed="2">2x</div>
-                                        </div>
-                                    </div>
+                                <button id="speedSettingsBtn" class="ctrl-btn" title="Speed Settings">
+                                    <i class="fa-solid fa-gear"></i>
+                                </button>
 
-                                    <button id="speedSettingsBtn" class="ctrl-btn" title="Speed Settings">
-                                        <i class="fa-solid fa-gear"></i>
-                                    </button>
+                                <button id="pipBtn" class="ctrl-btn" title="Picture-in-Picture (PiP)">
+                                    <i class="fa-solid fa-clone"></i>
+                                </button>
 
-                                    <button id="pipBtn" class="ctrl-btn" title="Picture-in-Picture (PiP)">
-                                        <i class="fa-solid fa-clone"></i>
-                                    </button>
-
-                                    <button id="fullscreenBtn" class="ctrl-btn" title="Toggle Fullscreen">
-                                        <i id="fullscreenIcon" class="fa-solid fa-expand"></i>
-                                    </button>
-                                </div>
+                                <button id="fullscreenBtn" class="ctrl-btn" title="Toggle Fullscreen">
+                                    <i id="fullscreenIcon" class="fa-solid fa-expand"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
