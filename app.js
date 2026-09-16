@@ -1442,12 +1442,14 @@ document.addEventListener('DOMContentLoaded', () => {
             hideAuthError();
         }
 
+        const authTabsContainer = document.querySelector('.auth-tabs');
+
         function switchAuthTab(mode) {
             hideAuthError();
             if (mode === 'signup') {
+                if (authTabsContainer) authTabsContainer.style.display = 'flex';
                 if (tabLoginBtn) tabLoginBtn.classList.remove('active');
                 if (tabSignupBtn) tabSignupBtn.classList.add('active');
-                if (tabAbhyasBtn) tabAbhyasBtn.classList.remove('active');
 
                 if (loginForm) loginForm.style.display = 'none';
                 if (signupForm) signupForm.style.display = 'flex';
@@ -1459,9 +1461,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     rebindSwitchLink();
                 }
             } else if (mode === 'abhyas') {
+                // Hide top tab bar when in Abhyas login mode
+                if (authTabsContainer) authTabsContainer.style.display = 'none';
                 if (tabLoginBtn) tabLoginBtn.classList.remove('active');
                 if (tabSignupBtn) tabSignupBtn.classList.remove('active');
-                if (tabAbhyasBtn) tabAbhyasBtn.classList.add('active');
 
                 if (loginForm) loginForm.style.display = 'none';
                 if (signupForm) signupForm.style.display = 'none';
@@ -1478,9 +1481,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     rebindSwitchLink();
                 }
             } else {
+                if (authTabsContainer) authTabsContainer.style.display = 'flex';
                 if (tabLoginBtn) tabLoginBtn.classList.add('active');
                 if (tabSignupBtn) tabSignupBtn.classList.remove('active');
-                if (tabAbhyasBtn) tabAbhyasBtn.classList.remove('active');
 
                 if (loginForm) loginForm.style.display = 'flex';
                 if (signupForm) signupForm.style.display = 'none';
@@ -1539,7 +1542,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (tabLoginBtn) tabLoginBtn.addEventListener('click', () => switchAuthTab('login'));
         if (tabSignupBtn) tabSignupBtn.addEventListener('click', () => switchAuthTab('signup'));
-        if (tabAbhyasBtn) tabAbhyasBtn.addEventListener('click', () => switchAuthTab('abhyas'));
 
         document.querySelectorAll('.abhyasTriggerBtn').forEach(btn => {
             btn.addEventListener('click', () => switchAuthTab('abhyas'));
