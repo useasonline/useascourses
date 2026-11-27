@@ -47,10 +47,35 @@
             </nav>
 
             <div class="nav-actions">
-                <a href="#coursesGrid" class="btn btn-primary btn-sm nav-cta-btn">
-                    <i class="fa-solid fa-play"></i>
-                    <span>Start Learning</span>
-                </a>
+                <button id="authOpenBtn" class="btn btn-primary btn-sm nav-cta-btn">
+                    <i class="fa-solid fa-right-to-bracket"></i>
+                    <span>Student Login / Signup</span>
+                </button>
+                <div id="userHeaderProfile" class="user-profile-wrap" style="display: none;">
+                    <button id="profileAvatarBtn" class="profile-avatar-btn" title="View Profile" type="button" aria-expanded="false">
+                        <span id="navAvatarLetter" class="avatar-letter">S</span>
+                    </button>
+
+                    <!-- Profile Dropdown Card -->
+                    <div id="profileDropdown" class="profile-dropdown">
+                        <div class="profile-dropdown-header">
+                            <div class="profile-dropdown-avatar">
+                                <span id="dropdownAvatarLetter" class="avatar-letter">S</span>
+                            </div>
+                            <div class="profile-dropdown-info">
+                                <h4 id="dropdownStudentName" class="profile-dropdown-name">Student Name</h4>
+                                <p id="dropdownStudentEmail" class="profile-dropdown-email">student@example.com</p>
+                                <span id="dropdownSucBadge" class="suc-pill">SUC10045</span>
+                            </div>
+                        </div>
+                        <div class="profile-dropdown-divider"></div>
+                        <div class="profile-dropdown-actions">
+                            <button id="logoutBtn" class="btn btn-danger dropdown-logout-btn" type="button">
+                                <i class="fa-solid fa-right-from-bracket"></i> Log Out
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </header>
@@ -320,6 +345,286 @@
         </div>
     </div>
 
+    <!-- Student Authentication Modal (Login / Sign Up) -->
+    <div id="authModal" class="modal-overlay">
+        <div class="auth-card">
+            <button id="closeAuthBtn" class="close-modal-btn auth-close-btn" title="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="auth-header">
+                <div class="brand-logo" style="width: 48px; height: 48px; font-size: 1.3rem; margin: 0 auto 0.75rem auto;">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <h2 id="authModalTitle" class="auth-title">Student Portal Login</h2>
+                <p class="auth-subtitle">Access your courses and track your live progress.</p>
+            </div>
+
+            <!-- Tab Switcher -->
+            <div class="auth-tabs">
+                <button id="tabLoginBtn" class="auth-tab-btn active" type="button">Log In</button>
+                <button id="tabSignupBtn" class="auth-tab-btn" type="button">Create Account</button>
+            </div>
+
+            <!-- Form Error Message Box -->
+            <div id="authErrorBox" class="auth-error-box" style="display: none;"></div>
+
+            <!-- Log In Form -->
+            <form id="loginForm" class="auth-form">
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-id-card"></i> SUC Code or Email</label>
+                    <input type="text" id="loginIdInput" class="form-input" placeholder="Enter SUC Code or Email" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-lock"></i> Account Password</label>
+                    <input type="password" id="loginPasswordInput" class="form-input" placeholder="Enter your password" required>
+                </div>
+                <button type="submit" id="loginSubmitBtn" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
+                    <i class="fa-solid fa-right-to-bracket"></i> Log In to Portal
+                </button>
+
+                <div class="auth-divider">
+                    <span>OR CONTINUE WITH</span>
+                </div>
+
+                <button type="button" class="btn-abhyas-option abhyasTriggerBtn">
+                    <img src="abhyas-logo.png" alt="Abhyas" class="abhyas-btn-logo">
+                    <span>Login with Abhyas SUC</span>
+                </button>
+            </form>
+
+            <!-- Sign Up Form (hidden by default) -->
+            <form id="signupForm" class="auth-form" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-user"></i> Student Full Name</label>
+                    <input type="text" id="signupNameInput" class="form-input" placeholder="e.g. John Doe" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-id-card"></i> Student SUC Code</label>
+                    <input type="text" id="signupSucInput" class="form-input" placeholder="e.g. SUC10045" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-envelope"></i> Student Email</label>
+                    <input type="email" id="signupEmailInput" class="form-input" placeholder="student@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-lock"></i> Set Password</label>
+                    <input type="password" id="signupPasswordInput" class="form-input" placeholder="Create password" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-shield-halved"></i> Confirm Password</label>
+                    <input type="password" id="signupConfirmPasswordInput" class="form-input" placeholder="Re-enter password to check" required>
+                </div>
+                <button type="submit" id="signupSubmitBtn" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
+                    <i class="fa-solid fa-user-plus"></i> Create Account & Login
+                </button>
+
+                <div class="auth-divider">
+                    <span>OR SIGN UP WITH</span>
+                </div>
+
+                <button type="button" class="btn-abhyas-option abhyasTriggerBtn">
+                    <img src="abhyas-logo.png" alt="Abhyas" class="abhyas-btn-logo">
+                    <span>Sign Up with Abhyas SUC</span>
+                </button>
+            </form>
+
+            <!-- Abhyas Flow Container (hidden by default) -->
+            <div id="abhyasFormContainer" class="auth-form" style="display: none;">
+                <!-- Abhyas Banner Header -->
+                <div class="abhyas-header-card">
+                    <img src="abhyas-logo.png" alt="Abhyas Portal" class="abhyas-card-logo">
+                    <span class="abhyas-tagline">Student Verification Portal</span>
+                </div>
+
+                <!-- Step 1: 10-Digit SUC Input -->
+                <form id="abhyasSucForm" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label"><i class="fa-solid fa-hashtag"></i> 10-Digit Abhyas SUC Code</label>
+                        <input type="text" id="abhyasSucInput" class="form-input abhyas-suc-input" 
+                               placeholder="e.g. 2546640001" 
+                               maxlength="10" 
+                               pattern="[0-9]{10}"
+                               inputmode="numeric"
+                               required>
+                        <span class="input-help-text">Enter your exact 10-digit student SUC code.</span>
+                    </div>
+
+                    <button type="submit" id="abhyasSucSubmitBtn" class="btn btn-abhyas-primary">
+                        <i class="fa-solid fa-magnifying-glass"></i> Submit & Fetch Details
+                    </button>
+                </form>
+
+                <!-- Step 2: Student Details Confirmation & Login Choices -->
+                <div id="abhyasDetailsCard" style="display: none;" class="abhyas-details-card">
+                    <div class="abhyas-details-header">
+                        <i class="fa-solid fa-id-badge"></i> Student Details Verification
+                    </div>
+
+                    <div class="abhyas-detail-row">
+                        <span class="detail-label">SUC Code:</span>
+                        <span id="displayAbhyasSuc" class="detail-value-highlight">...</span>
+                    </div>
+                    <div class="abhyas-detail-row">
+                        <span class="detail-label">Full Name:</span>
+                        <span id="displayAbhyasName" class="detail-value">...</span>
+                    </div>
+                    <div class="abhyas-detail-row">
+                        <span class="detail-label">Course / Group:</span>
+                        <span id="displayAbhyasGroup" class="detail-value">...</span>
+                    </div>
+
+                    <!-- Section 2A: First-Time Setup (No password set yet) -->
+                    <div id="abhyasFirstTimeBox" style="display: none; flex-direction: column; gap: 0.75rem; border-top: 1px dashed #cbd5e1; padding-top: 0.75rem; margin-top: 0.25rem;">
+                        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 12px; font-size: 0.8rem; color: #1e40af; display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-wand-magic-sparkles" style="color: #2563eb; font-size: 1rem;"></i>
+                            <span>First-Time Login: Send OTP to your email to verify and create your account password.</span>
+                        </div>
+
+                        <div class="abhyas-detail-row" style="gap: 4px;">
+                            <label class="detail-label" for="abhyasEmailInput"><i class="fa-solid fa-envelope"></i> Delivery Email Address:</label>
+                            <input type="email" id="abhyasEmailInput" class="form-input" style="padding: 9px 12px; font-weight: 600; font-size: 0.95rem; border: 1.5px solid var(--primary-color, #2563eb); border-radius: 8px; width: 100%;" placeholder="Enter student email address" required>
+                            <small style="color: #64748b; font-size: 0.76rem;"><i class="fa-solid fa-circle-info"></i> Confirm or update your email address above to receive the 6-digit OTP code.</small>
+                        </div>
+
+                        <div class="abhyas-actions-row">
+                            <button type="button" id="abhyasBackBtn" class="btn btn-secondary btn-sm">
+                                <i class="fa-solid fa-arrow-left"></i> Change Code
+                            </button>
+                            <button type="button" id="abhyasConfirmBtn" class="btn btn-success" style="flex: 1;">
+                                <i class="fa-solid fa-paper-plane"></i> Confirm & Send OTP
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Section 2B: Subsequent Login Options (Password already set) -->
+                    <div id="abhyasSubsequentBox" style="display: none; flex-direction: column; gap: 0.85rem; border-top: 1px dashed #cbd5e1; padding-top: 0.75rem; margin-top: 0.25rem;">
+                        <div style="display: flex; background: #e2e8f0; border-radius: 8px; padding: 3px; gap: 4px;">
+                            <button type="button" id="abhyasMethodPassBtn" class="btn btn-sm active" style="flex: 1; font-weight: 700; padding: 6px 10px;">
+                                <i class="fa-solid fa-key"></i> Log In with Password
+                            </button>
+                            <button type="button" id="abhyasMethodOtpBtn" class="btn btn-sm" style="flex: 1; font-weight: 700; padding: 6px 10px; background: transparent; color: #475569;">
+                                <i class="fa-solid fa-envelope"></i> Log In with Email OTP
+                            </button>
+                        </div>
+
+                        <!-- Option 1: Password Form -->
+                        <form id="abhyasPasswordForm" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="font-size: 0.82rem;"><i class="fa-solid fa-lock"></i> Enter Account Password</label>
+                                <input type="password" id="abhyasPasswordInput" class="form-input" placeholder="Enter your password" required>
+                            </div>
+                            <div class="abhyas-actions-row">
+                                <button type="button" id="abhyasSubsequentBackBtn" class="btn btn-secondary btn-sm">
+                                    <i class="fa-solid fa-arrow-left"></i> Back
+                                </button>
+                                <button type="submit" id="abhyasPasswordSubmitBtn" class="btn btn-primary" style="flex: 1;">
+                                    <i class="fa-solid fa-right-to-bracket"></i> Log In
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Option 2: OTP Email Form -->
+                        <div id="abhyasOtpOptionBox" style="display: none; flex-direction: column; gap: 0.75rem;">
+                            <div class="abhyas-detail-row" style="gap: 4px;">
+                                <label class="detail-label" for="abhyasEmailInputSubsequent"><i class="fa-solid fa-envelope"></i> Delivery Email Address:</label>
+                                <input type="email" id="abhyasEmailInputSubsequent" class="form-input" style="padding: 9px 12px; font-weight: 600; font-size: 0.95rem; border: 1.5px solid var(--primary-color, #2563eb); border-radius: 8px; width: 100%;" placeholder="Enter student email address" required>
+                            </div>
+                            <div class="abhyas-actions-row">
+                                <button type="button" id="abhyasSubsequentBackBtn2" class="btn btn-secondary btn-sm">
+                                    <i class="fa-solid fa-arrow-left"></i> Back
+                                </button>
+                                <button type="button" id="abhyasConfirmBtnSubsequent" class="btn btn-success" style="flex: 1;">
+                                    <i class="fa-solid fa-paper-plane"></i> Send OTP to Email
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: OTP Verification Form with Lottie Animation -->
+                <form id="abhyasOtpForm" style="display: none; flex-direction: column; gap: 1rem;">
+                    <div id="emailSentAnimContainer" style="width: 100%; height: 150px; display: flex; align-items: center; justify-content: center; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden;"></div>
+
+                    <div class="abhyas-otp-info" style="margin-top: -0.25rem;">
+                        <i class="fa-solid fa-envelope-circle-check"></i>
+                        <div style="flex: 1;">
+                            <p style="margin: 0; font-weight: 700; color: #065f46;">Email Successfully Sent!</p>
+                            <p style="margin: 2px 0 0 0; font-size: 0.82rem; word-break: break-all; color: #047857;">OTP code has been sent to <strong id="otpEmailTarget">...</strong></p>
+                            <p style="margin: 4px 0 0 0; font-size: 0.76rem; opacity: 0.85;">Please check your Inbox and Spam/Junk folder.</p>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label"><i class="fa-solid fa-key"></i> Enter 6-Digit OTP Code</label>
+                        <input type="text" id="abhyasOtpInput" class="form-input abhyas-otp-input" 
+                               placeholder="e.g. 583921" 
+                               maxlength="6" 
+                               pattern="[0-9]{6}"
+                               inputmode="numeric"
+                               required>
+                    </div>
+
+                    <div class="abhyas-actions-row">
+                        <button type="button" id="abhyasResendOtpBtn" class="btn btn-secondary btn-sm">
+                            <i class="fa-solid fa-rotate-right"></i> Resend OTP
+                        </button>
+                        <button type="submit" id="abhyasOtpSubmitBtn" class="btn btn-primary" style="flex: 1;">
+                            <i class="fa-solid fa-shield-check"></i> Verify OTP
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Step 4: First-Time Set Password Form -->
+                <form id="abhyasSetPasswordForm" style="display: none; flex-direction: column; gap: 1rem;">
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 12px; color: #166534; display: flex; align-items: flex-start; gap: 10px;">
+                        <i class="fa-solid fa-shield-check" style="font-size: 1.4rem; color: #16a34a; margin-top: 2px;"></i>
+                        <div>
+                            <strong style="font-size: 0.95rem;">OTP Verified Successfully!</strong>
+                            <p style="margin: 3px 0 0 0; font-size: 0.82rem;">Create a password for your account so you can quickly log in next time using Password or OTP.</p>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label"><i class="fa-solid fa-lock"></i> Create Account Password</label>
+                        <input type="password" id="abhyasNewPasswordInput" class="form-input" placeholder="Enter new password (min 4 characters)" required minlength="4">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label"><i class="fa-solid fa-lock-keyhole"></i> Confirm Password</label>
+                        <input type="password" id="abhyasConfirmPasswordInput" class="form-input" placeholder="Re-enter password to confirm" required minlength="4">
+                    </div>
+
+                    <button type="submit" id="abhyasSavePasswordBtn" class="btn btn-success" style="height: 44px; font-weight: 700;">
+                        <i class="fa-solid fa-check-circle"></i> Save Password & Complete Login
+                    </button>
+                </form>
+            </div>
+
+            <div class="auth-footer">
+                <span id="authSwitchPrompt">Don't have an account? <a href="#" id="authSwitchLink" style="color: var(--primary-dark); font-weight: 700;">Sign Up here</a></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Course Locked Modal Overlay -->
+    <div id="lockedModal" class="modal-overlay">
+        <div class="auth-card" style="text-align: center; max-width: 420px; padding: 2.5rem 2rem; position: relative;">
+            <button id="closeLockedBtn" class="close-modal-btn auth-close-btn" title="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div id="lockedLottieWrap" style="width: 180px; height: 180px; margin: 0 auto;"></div>
+            <h2 style="font-size: 1.6rem; font-weight: 800; color: var(--text-main); margin-top: 1rem; margin-bottom: 0.5rem;">
+                Course Locked
+            </h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.5; margin-bottom: 1.5rem;">
+                Please log in to access this course and watch video lessons.
+            </p>
+            <button id="lockedLoginBtn" class="btn btn-primary" style="width: 100%; font-size: 1rem; padding: 0.85rem 1.25rem;">
+                <i class="fa-solid fa-right-to-bracket"></i> Log In to Access Course
+            </button>
+        </div>
+    </div>
+
     <!-- Course Registration Modal -->
     <div id="courseRegisterModal" class="modal-overlay">
         <div class="auth-card" style="max-width: 480px; padding: 2.2rem 2rem; position: relative;">
@@ -426,27 +731,13 @@
     <!-- Scripts -->
     <script src="lottie.min.js"></script>
     <script src="animations/no-item-found.js"></script>
+    <script src="animations/locked.js"></script>
     <script src="https://www.youtube.com/iframe_api"></script>
     <script type="module" src="firebase-config.js"></script>
     <script src="store.js"></script>
     <script src="app.js"></script>
-    <script>
-        (function () {
-            const guestUser = {
-                uid: 'guest_open_access',
-                name: 'Guest Learner',
-                suc: 'OPEN',
-                email: 'guest@useas.online',
-                isGuest: true
-            };
-            if (!localStorage.getItem('useas_current_user')) {
-                localStorage.setItem('useas_current_user', JSON.stringify(guestUser));
-            }
-            if (!localStorage.getItem('currentUser')) {
-                localStorage.setItem('currentUser', JSON.stringify(guestUser));
-            }
-            window.currentUser = window.currentUser || guestUser;
-        })();
-    </script>
 </body>
 </html>
+
+
+
