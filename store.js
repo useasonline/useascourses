@@ -1,6 +1,6 @@
 /**
  * useas - Data Store & State Management Module (store.js)
- * Safely merges LocalStorage + Firebase Realtime Database so newly created courses never get overwritten.
+ * Safely merges LocalStorage + Firebase Realtime Database so newly created courses & videos never get overwritten.
  */
 
 const STORAGE_KEYS = {
@@ -205,7 +205,7 @@ class StoreManager {
                 });
             }
 
-            // Merge cloud courses with local courses so newly created local courses are NEVER wiped out
+            // Merge cloud courses with local courses so newly created local courses are never overwritten
             window.UseasFirebase.listenCourses((cloudCourses) => {
                 const localCourses = this.getCourses();
 
@@ -217,9 +217,7 @@ class StoreManager {
                     const validCloud = cloudCourses.filter(c => c && typeof c === 'object' && c.id && !this.deletedCourseIds.has(c.id));
                     const mergedMap = new Map();
 
-                    // Cloud items first
                     validCloud.forEach(c => mergedMap.set(c.id, c));
-                    // Local items override if newer or missing from cloud
                     localCourses.forEach(localC => {
                         const cloudC = mergedMap.get(localC.id);
                         if (!cloudC || (localC.updatedAt || 0) >= (cloudC.updatedAt || 0)) {
@@ -361,7 +359,7 @@ class StoreManager {
         if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
             return trimmed;
         }
-        const match = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([a-zA-Z0-9_-]{11})/);
+        const match = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|live\/|watch\?v=|watch\?.+&v=))([a-zA-Z0-9_-]{11})/);
         if (match && match[1]) {
             return match[1];
         }
