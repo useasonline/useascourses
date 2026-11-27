@@ -4,6 +4,74 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+    const FALLBACK_ADMIN_KEY = 'useas_admin_profile_v1';
+    const FALLBACK_SESSION_KEY = 'useas_admin_session_v1';
+
+    function getSafeAdminProfile() {
+        if (window.UseasStore && typeof window.UseasStore.getAdminProfile === 'function') {
+            return window.UseasStore.getAdminProfile();
+        }
+        try {
+            const saved = JSON.parse(localStorage.getItem(FALLBACK_ADMIN_KEY) || '{}');
+            return {
+                email: saved.email || 'ssrdevelopers@gmail.com',
+                name: saved.name || 'SSR Developers Admin',
+                password: saved.password || 'adminpassword',
+                photo: saved.photo || ''
+            };
+        } catch (e) {
+            return {
+                email: 'ssrdevelopers@gmail.com',
+                name: 'SSR Developers Admin',
+                password: 'adminpassword',
+                photo: ''
+            };
+        }
+    }
+
+    function verifySafeAdminLogin(identifier, password) {
+        if (window.UseasStore && typeof window.UseasStore.verifyAdminLogin === 'function') {
+            return window.UseasStore.verifyAdminLogin(identifier, password);
+        }
+        const profile = getSafeAdminProfile();
+        const normId = (identifier || '').trim().toLowerCase();
+        if ((normId === profile.email.toLowerCase() || normId === profile.name.toLowerCase()) && password === profile.password) {
+            sessionStorage.setItem(FALLBACK_SESSION_KEY, 'true');
+            return { success: true, profile };
+        }
+        return { error: 'Invalid Admin Email/Name or Password.' };
+    }
+
+    function isSafeAdminAuthenticated() {
+        if (window.UseasStore && typeof window.UseasStore.isAdminAuthenticated === 'function') {
+            return window.UseasStore.isAdminAuthenticated();
+        }
+        return sessionStorage.getItem(FALLBACK_SESSION_KEY) === 'true';
+    }
+
+    function logoutSafeAdmin() {
+        if (window.UseasStore && typeof window.UseasStore.logoutAdmin === 'function') {
+            window.UseasStore.logoutAdmin();
+        }
+        sessionStorage.removeItem(FALLBACK_SESSION_KEY);
+    }
+
+    function updateSafeAdminProfile(updates) {
+        if (window.UseasStore && typeof window.UseasStore.updateAdminProfile === 'function') {
+            return window.UseasStore.updateAdminProfile(updates);
+        }
+        const current = getSafeAdminProfile();
+        const updated = {
+            ...current,
+            email: updates.email || current.email,
+            name: updates.name || current.name,
+            password: updates.password ? updates.password : current.password,
+            photo: updates.photo !== undefined ? updates.photo : current.photo
+        };
+        localStorage.setItem(FALLBACK_ADMIN_KEY, JSON.stringify(updated));
+        return updated;
+    }
+
     // Admin Auth Gate Elements
     const adminLoginGate = document.getElementById('adminLoginGate');
     const adminLoginForm = document.getElementById('adminLoginForm');
@@ -92,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const emailOrName = adminLoginEmailInput.value.trim();
                 const password = adminLoginPasswordInput.value;
 
-                const result = window.UseasStore.verifyAdminLogin(emailOrName, password);
+                const result = verifySafeAdminLogin(emailOrName, password);
                 if (result.success) {
                     adminLoginForm.reset();
                     checkAdminSession();
@@ -108,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (adminLogoutBtn) {
             adminLogoutBtn.addEventListener('click', () => {
-                window.UseasStore.logoutAdmin();
+                logoutSafeAdmin();
                 checkAdminSession();
                 showToast('Admin session locked.', 'info');
             });
@@ -116,19 +184,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function checkAdminSession() {
-        const isAuth = window.UseasStore.isAdminAuthenticated();
+        const isAuth = isSafeAdminAuthenticated();
         if (isAuth) {
-            if (adminLoginGate) adminLoginGate.classList.remove('active');
+            if (adminLoginGate) {
+                adminLoginGate.classList.remove('active');
+                adminLoginGate.style.display = 'none';
+            }
             if (adminMainContent) adminMainContent.style.display = 'block';
             updateAdminHeaderProfile();
         } else {
-            if (adminLoginGate) adminLoginGate.classList.add('active');
+            if (adminLoginGate) {
+                adminLoginGate.style.display = 'flex';
+                adminLoginGate.classList.add('active');
+            }
             if (adminMainContent) adminMainContent.style.display = 'none';
         }
     }
 
     function updateAdminHeaderProfile() {
-        const profile = window.UseasStore.getAdminProfile();
+        const profile = getSafeAdminProfile();
         const navAdminPhoto = document.getElementById('navAdminPhoto');
         const navAdminAvatarFallback = document.getElementById('navAdminAvatarFallback');
         const navAdminNameText = document.getElementById('navAdminNameText');
@@ -199,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (openAdminSettingsBtn) {
             openAdminSettingsBtn.addEventListener('click', () => {
-                const profile = window.UseasStore.getAdminProfile();
+                const profile = getSafeAdminProfile();
                 adminEmailSettingInput.value = profile.email || 'ssrdevelopers@gmail.com';
                 adminNameSettingInput.value = profile.name || 'SSR Developers Admin';
                 adminNewPasswordInput.value = '';
@@ -276,7 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                window.UseasStore.updateAdminProfile({
+                updateSafeAdminProfile({
                     email: newEmail,
                     name: newName,
                     password: newPass || undefined,
@@ -297,6 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (resetDemoBtn) {
             resetDemoBtn.addEventListener('click', () => {
+                if (!window.UseasStore) return;
                 if (confirm('Are you sure you want to clear all courses from Firebase Realtime Database?')) {
                     window.UseasStore.resetToDefault();
                     renderAdminDashboard();
@@ -371,7 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderAdminDashboard() {
-        const courses = (window.UseasStore.getCourses() || []).filter(c => c && c.id);
+        const courses = (window.UseasStore ? window.UseasStore.getCourses() : []).filter(c => c && c.id);
 
         const totalCourses = courses.length;
         let totalLessons = 0;
@@ -442,7 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderAdminRegistrations() {
-        const regs = window.UseasStore.getCourseRegistrations();
+        const regs = window.UseasStore ? window.UseasStore.getCourseRegistrations() : [];
 
         if (statTotalRegistrations) {
             statTotalRegistrations.textContent = regs.length;
@@ -513,6 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function openEditCourseModal(courseId) {
+        if (!window.UseasStore) return;
         const course = window.UseasStore.getCourseById(courseId);
         if (!course) return;
 
@@ -538,6 +614,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleCourseSubmit(e) {
         e.preventDefault();
+        if (!window.UseasStore) return;
 
         const isNewCourse = !courseIdInput.value;
         const targetCourseId = courseIdInput.value || ('course-' + Date.now());
@@ -578,6 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleCourseDelete(courseId) {
+        if (!window.UseasStore) return;
         const course = window.UseasStore.getCourseById(courseId);
         if (!course) return;
 
@@ -709,6 +787,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function openManageVideosModal(courseId) {
+        if (!window.UseasStore) return;
         activeManagingCourseId = courseId;
         const course = window.UseasStore.getCourseById(courseId);
         if (!course) return;
@@ -811,6 +890,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (lessonsTableContainer) {
         lessonsTableContainer.addEventListener('click', (e) => {
+            if (!window.UseasStore) return;
             const editBtn = e.target.closest('.edit-lesson-btn');
             if (editBtn) {
                 const lessonId = editBtn.getAttribute('data-lesson-id');
@@ -853,7 +933,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleLessonSubmit(e) {
         e.preventDefault();
-        if (!activeManagingCourseId) return;
+        if (!activeManagingCourseId || !window.UseasStore) return;
 
         const type = currentLessonType || 'video';
         const isEditing = Boolean(lessonIdInput.value);
@@ -909,7 +989,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleVideoPreview() {
         const videoUrl = lessonUrlInput.value.trim();
-        const videoId = window.UseasStore.extractYoutubeId(videoUrl);
+        const videoId = window.UseasStore ? window.UseasStore.extractYoutubeId(videoUrl) : videoUrl;
 
         if (!videoId) {
             alert('Please enter a YouTube video URL or ID first.');
