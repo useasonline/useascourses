@@ -1,6 +1,6 @@
 /**
- * useas - Data Store & State Management Module
- * Manages courses, lessons, YouTube video URL parsing, completion progress, admin profile, and Firebase sync.
+ * useas - Data Store & State Management Module (store.js)
+ * Safely merges LocalStorage + Firebase Realtime Database so newly created courses never get overwritten.
  */
 
 const STORAGE_KEYS = {
@@ -20,7 +20,6 @@ const DEFAULT_ADMIN_PROFILE = {
     photo: ''
 };
 
-// Default Courses initialized with multi-type lessons (Video, Text Page, Proctored Exam)
 const DEFAULT_COURSES = [
     {
         id: 'course-101',
@@ -82,7 +81,7 @@ const DEFAULT_COURSES = [
                 title: '3. Modern Frontend Architecture Notes (Article)',
                 duration: '5 mins',
                 description: 'Essential reading on Component-Based Architecture and State Management.',
-                textContent: `### Modern Web Architecture Overview\n\nModern frontend web applications rely on key principles:\n\n1. **Component-Driven Architecture**: Building user interfaces using small, isolated, and reusable component blocks.\n2. **Declarative State Management**: Keeping state localized or central while automatically re-rendering target DOM trees.\n3. **Single Page Applications (SPAs)**: Routing client-side without full page reloads to maximize user experience speed.`
+                textContent: '### Modern Web Architecture Overview\n\nModern frontend web applications rely on key principles:\n\n1. **Component-Driven Architecture**: Building user interfaces using small, isolated, and reusable component blocks.\n2. **Declarative State Management**: Keeping state localized or central while automatically re-rendering target DOM trees.\n3. **Single Page Applications (SPAs)**: Routing client-side without full page reloads to maximize user experience speed.'
             }
         ]
     },
@@ -141,7 +140,8 @@ class StoreManager {
         this.registrations = [];
         this.currentStudent = null;
         this.adminProfile = { ...DEFAULT_ADMIN_PROFILE };
-        this.hasSeededDefaults = false;
+        this.firebaseAttached = false;
+        this.deletedCourseIds = new Set();
 
         this.initStore();
         this.setupFirebaseSync();
@@ -149,7 +149,6 @@ class StoreManager {
 
     initStore() {
         try {
-            // Load Admin Profile
             const savedAdmin = localStorage.getItem(STORAGE_KEYS.ADMIN_PROFILE);
             if (savedAdmin) {
                 this.adminProfile = { ...DEFAULT_ADMIN_PROFILE, ...JSON.parse(savedAdmin) };
@@ -158,34 +157,29 @@ class StoreManager {
                 localStorage.setItem(STORAGE_KEYS.ADMIN_PROFILE, JSON.stringify(this.adminProfile));
             }
 
-            // Load Courses from localStorage
             const savedCourses = localStorage.getItem(STORAGE_KEYS.COURSES);
-            if (savedCourses) {
+            if (savedCourses !== null) {
                 const parsed = JSON.parse(savedCourses);
-                this.courses = Array.isArray(parsed) ? parsed.filter(c => c && typeof c === 'object' && c.id) : DEFAULT_COURSES;
+                this.courses = Array.isArray(parsed) ? parsed.filter(c => c && typeof c === 'object' && c.id) : [];
             } else {
-                this.courses = DEFAULT_COURSES;
-                localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(DEFAULT_COURSES));
+                this.courses = [...DEFAULT_COURSES];
+                localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(this.courses));
             }
 
-            // Load Progress
             const savedProgress = localStorage.getItem(STORAGE_KEYS.PROGRESS);
             this.progress = savedProgress ? JSON.parse(savedProgress) : {};
 
-            // Load Students
             const savedStudents = localStorage.getItem(STORAGE_KEYS.STUDENTS);
             this.students = savedStudents ? JSON.parse(savedStudents) : [];
 
-            // Load Current Student
             const savedCurrentStudent = localStorage.getItem(STORAGE_KEYS.CURRENT_STUDENT);
             this.currentStudent = savedCurrentStudent ? JSON.parse(savedCurrentStudent) : null;
 
-            // Load Registrations
             const savedRegistrations = localStorage.getItem(STORAGE_KEYS.REGISTRATIONS);
             this.registrations = savedRegistrations ? JSON.parse(savedRegistrations) : [];
         } catch (e) {
-            console.error('Store initialization error, fallback to defaults:', e);
-            this.courses = DEFAULT_COURSES;
+            console.error('Store initialization error:', e);
+            this.courses = [...DEFAULT_COURSES];
             this.progress = {};
             this.students = [];
             this.currentStudent = null;
@@ -196,86 +190,98 @@ class StoreManager {
 
     setupFirebaseSync() {
         const attachListeners = () => {
-            if (typeof window !== 'undefined' && window.UseasFirebase) {
-                // Firebase Realtime Listener: Admin Profile
+            if (this.firebaseAttached || typeof window === 'undefined' || !window.UseasFirebase) return;
+            this.firebaseAttached = true;
+
+            if (typeof window.UseasFirebase.listenAdminProfile === 'function') {
                 window.UseasFirebase.listenAdminProfile((cloudAdmin) => {
-                    if (cloudAdmin && typeof cloudAdmin === 'object') {
+                    if (cloudAdmin && typeof cloudAdmin === 'object' && cloudAdmin.email) {
                         this.adminProfile = { ...DEFAULT_ADMIN_PROFILE, ...cloudAdmin };
                         localStorage.setItem(STORAGE_KEYS.ADMIN_PROFILE, JSON.stringify(this.adminProfile));
-                        if (typeof window !== 'undefined') {
-                            window.dispatchEvent(new CustomEvent('admin-profile-updated'));
-                        }
-                    }
-                });
-
-                // Firebase Realtime Listener: Courses
-                window.UseasFirebase.listenCourses((cloudCourses) => {
-                    if (cloudCourses === null) {
-                        if (!this.hasSeededDefaults) {
-                            this.hasSeededDefaults = true;
-                            this.courses = DEFAULT_COURSES;
-                            localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(DEFAULT_COURSES));
-                            window.UseasFirebase.syncCoursesToCloud(DEFAULT_COURSES);
-                        }
-                    } else if (Array.isArray(cloudCourses)) {
-                        const validCloud = cloudCourses.filter(c => c && typeof c === 'object' && c.id);
-                        if (validCloud.length > 0) {
-                            this.courses = validCloud;
-                            localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(this.courses));
-                        }
-                    }
-
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(new CustomEvent('courses-updated'));
-                    }
-                });
-
-                // Firebase Realtime Listener: Progress
-                window.UseasFirebase.listenProgress((cloudProgress) => {
-                    if (cloudProgress && typeof cloudProgress === 'object') {
-                        this.progress = { ...this.progress, ...cloudProgress };
-                        localStorage.setItem(STORAGE_KEYS.PROGRESS, JSON.stringify(this.progress));
-                        if (typeof window !== 'undefined') {
-                            window.dispatchEvent(new CustomEvent('progress-updated'));
-                        }
-                    }
-                });
-
-                // Firebase Realtime Listener: Students
-                window.UseasFirebase.listenStudents((cloudStudents) => {
-                    if (cloudStudents && Array.isArray(cloudStudents) && cloudStudents.length > 0) {
-                        const validStudents = cloudStudents.filter(s => s && typeof s === 'object' && (s.id || s.sucCode));
-                        if (validStudents.length > 0) {
-                            this.students = validStudents;
-                            localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(this.students));
-
-                            if (this.currentStudent) {
-                                const updated = this.students.find(s => s.id === this.currentStudent.id || (s.sucCode && s.sucCode.toLowerCase() === this.currentStudent.sucCode.toLowerCase()));
-                                if (updated) {
-                                    this.currentStudent = updated;
-                                    localStorage.setItem(STORAGE_KEYS.CURRENT_STUDENT, JSON.stringify(updated));
-                                }
-                            }
-
-                            if (typeof window !== 'undefined') {
-                                window.dispatchEvent(new CustomEvent('student-auth-changed'));
-                            }
-                        }
-                    }
-                });
-
-                // Firebase Realtime Listener: Registrations
-                window.UseasFirebase.listenRegistrations((cloudRegistrations) => {
-                    if (cloudRegistrations && Array.isArray(cloudRegistrations) && cloudRegistrations.length > 0) {
-                        const validRegs = cloudRegistrations.filter(r => r && typeof r === 'object');
-                        this.registrations = validRegs;
-                        localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(this.registrations));
-                        if (typeof window !== 'undefined') {
-                            window.dispatchEvent(new CustomEvent('registrations-updated'));
-                        }
+                        window.dispatchEvent(new CustomEvent('admin-profile-updated'));
+                    } else {
+                        window.UseasFirebase.saveAdminProfileToCloud(this.adminProfile);
                     }
                 });
             }
+
+            // Merge cloud courses with local courses so newly created local courses are NEVER wiped out
+            window.UseasFirebase.listenCourses((cloudCourses) => {
+                const localCourses = this.getCourses();
+
+                if (cloudCourses === null) {
+                    if (localCourses.length > 0) {
+                        window.UseasFirebase.syncCoursesToCloud(localCourses);
+                    }
+                } else if (Array.isArray(cloudCourses)) {
+                    const validCloud = cloudCourses.filter(c => c && typeof c === 'object' && c.id && !this.deletedCourseIds.has(c.id));
+                    const mergedMap = new Map();
+
+                    // Cloud items first
+                    validCloud.forEach(c => mergedMap.set(c.id, c));
+                    // Local items override if newer or missing from cloud
+                    localCourses.forEach(localC => {
+                        const cloudC = mergedMap.get(localC.id);
+                        if (!cloudC || (localC.updatedAt || 0) >= (cloudC.updatedAt || 0)) {
+                            mergedMap.set(localC.id, localC);
+                        }
+                    });
+
+                    this.courses = Array.from(mergedMap.values());
+                    localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(this.courses));
+                }
+
+                window.dispatchEvent(new CustomEvent('courses-updated'));
+            });
+
+            window.UseasFirebase.listenProgress((cloudProgress) => {
+                if (cloudProgress && typeof cloudProgress === 'object') {
+                    this.progress = { ...this.progress, ...cloudProgress };
+                    localStorage.setItem(STORAGE_KEYS.PROGRESS, JSON.stringify(this.progress));
+                    window.dispatchEvent(new CustomEvent('progress-updated'));
+                }
+            });
+
+            window.UseasFirebase.listenStudents((cloudStudents) => {
+                if (Array.isArray(cloudStudents) && cloudStudents.length > 0) {
+                    const validStudents = cloudStudents.filter(s => s && typeof s === 'object' && (s.id || s.sucCode));
+                    if (validStudents.length > 0) {
+                        const mergedMap = new Map();
+                        this.getStudents().forEach(s => mergedMap.set(s.id || s.sucCode, s));
+                        validStudents.forEach(s => mergedMap.set(s.id || s.sucCode, s));
+                        this.students = Array.from(mergedMap.values());
+                        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(this.students));
+
+                        if (this.currentStudent) {
+                            const updated = this.students.find(s =>
+                                s.id === this.currentStudent.id ||
+                                (s.sucCode && this.currentStudent.sucCode && s.sucCode.toLowerCase() === this.currentStudent.sucCode.toLowerCase())
+                            );
+                            if (updated) {
+                                this.currentStudent = updated;
+                                localStorage.setItem(STORAGE_KEYS.CURRENT_STUDENT, JSON.stringify(updated));
+                            }
+                        }
+                        window.dispatchEvent(new CustomEvent('student-auth-changed'));
+                    }
+                } else if (this.getStudents().length > 0) {
+                    window.UseasFirebase.syncStudentsToCloud(this.getStudents());
+                }
+            });
+
+            window.UseasFirebase.listenRegistrations((cloudRegistrations) => {
+                if (Array.isArray(cloudRegistrations) && cloudRegistrations.length > 0) {
+                    const validRegs = cloudRegistrations.filter(r => r && typeof r === 'object');
+                    const mergedMap = new Map();
+                    this.getCourseRegistrations().forEach(r => mergedMap.set(r.id || `${r.courseId}_${r.sucCode}`, r));
+                    validRegs.forEach(r => mergedMap.set(r.id || `${r.courseId}_${r.sucCode}`, r));
+                    this.registrations = Array.from(mergedMap.values());
+                    localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(this.registrations));
+                    window.dispatchEvent(new CustomEvent('registrations-updated'));
+                } else if (this.getCourseRegistrations().length > 0) {
+                    window.UseasFirebase.syncRegistrationsToCloud(this.getCourseRegistrations());
+                }
+            });
         };
 
         if (typeof window !== 'undefined') {
@@ -284,8 +290,14 @@ class StoreManager {
         }
     }
 
-    // Admin Authentication & Profile Management
+    // ==================== ADMIN METHODS ====================
     getAdminProfile() {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEYS.ADMIN_PROFILE);
+            if (saved) {
+                this.adminProfile = { ...DEFAULT_ADMIN_PROFILE, ...JSON.parse(saved) };
+            }
+        } catch (e) {}
         return { ...DEFAULT_ADMIN_PROFILE, ...(this.adminProfile || {}) };
     }
 
@@ -322,8 +334,8 @@ class StoreManager {
         const current = this.getAdminProfile();
         this.adminProfile = {
             ...current,
-            email: (updates.email !== undefined ? updates.email.trim() : current.email) || current.email,
-            name: (updates.name !== undefined ? updates.name.trim() : current.name) || current.name,
+            email: (updates.email !== undefined && updates.email.trim() !== '') ? updates.email.trim() : current.email,
+            name: (updates.name !== undefined && updates.name.trim() !== '') ? updates.name.trim() : current.name,
             password: (updates.password && updates.password.trim() !== '') ? updates.password : current.password,
             photo: updates.photo !== undefined ? updates.photo : current.photo
         };
@@ -332,7 +344,7 @@ class StoreManager {
             localStorage.setItem(STORAGE_KEYS.ADMIN_PROFILE, JSON.stringify(this.adminProfile));
         } catch (e) {}
 
-        if (typeof window !== 'undefined' && window.UseasFirebase) {
+        if (typeof window !== 'undefined' && window.UseasFirebase && typeof window.UseasFirebase.saveAdminProfileToCloud === 'function') {
             window.UseasFirebase.saveAdminProfileToCloud(this.adminProfile);
         }
 
@@ -342,7 +354,7 @@ class StoreManager {
         return this.adminProfile;
     }
 
-    // Helper: Extract YouTube Video ID from any URL format cleanly
+    // ==================== YOUTUBE PARSER ====================
     extractYoutubeId(urlOrId) {
         if (!urlOrId) return '';
         const trimmed = urlOrId.trim();
@@ -357,49 +369,56 @@ class StoreManager {
         return fallback ? fallback[1] : trimmed;
     }
 
-    // Get all courses
+    // ==================== COURSE METHODS ====================
     getCourses() {
-        if (!this.courses || this.courses.length === 0) {
-            try {
-                const saved = localStorage.getItem(STORAGE_KEYS.COURSES);
-                if (saved) this.courses = JSON.parse(saved);
-            } catch (e) {}
-        }
+        try {
+            const saved = localStorage.getItem(STORAGE_KEYS.COURSES);
+            if (saved !== null) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                    this.courses = parsed.filter(c => c && typeof c === 'object' && c.id);
+                }
+            }
+        } catch (e) {}
         return (this.courses || []).filter(c => c && typeof c === 'object' && c.id);
     }
 
-    // Get single course by ID
     getCourseById(courseId) {
-        return (this.getCourses()).find(c => c.id === courseId) || null;
+        return this.getCourses().find(c => c.id === courseId) || null;
     }
 
-    // Save or update a course
     saveCourse(courseData) {
-        if (!this.courses) this.courses = [];
-        const existingIndex = this.courses.findIndex(c => c && c.id === courseData.id);
+        const currentCourses = this.getCourses();
+        const existingIndex = currentCourses.findIndex(c => c && c.id === courseData.id);
+        const now = Date.now();
         
         let targetCourse;
         if (existingIndex >= 0) {
-            this.courses[existingIndex] = {
+            currentCourses[existingIndex] = {
                 lessons: [],
-                ...this.courses[existingIndex],
-                ...courseData
+                ...currentCourses[existingIndex],
+                ...courseData,
+                updatedAt: now
             };
-            targetCourse = this.courses[existingIndex];
+            targetCourse = currentCourses[existingIndex];
         } else {
             targetCourse = {
-                id: courseData.id || ('course-' + Date.now()),
+                id: courseData.id || ('course-' + now),
                 lessons: [],
-                ...courseData
+                ...courseData,
+                updatedAt: now
             };
-            this.courses.unshift(targetCourse);
+            currentCourses.unshift(targetCourse);
         }
 
-        this.courses = this.courses.filter(c => c && typeof c === 'object' && c.id);
+        this.deletedCourseIds.delete(targetCourse.id);
+        this.courses = currentCourses.filter(c => c && typeof c === 'object' && c.id);
 
         try {
             localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(this.courses));
-        } catch (e) {}
+        } catch (e) {
+            console.error('LocalStorage saveCourse error:', e);
+        }
 
         if (typeof window !== 'undefined' && window.UseasFirebase) {
             window.UseasFirebase.saveCourseToCloud(targetCourse);
@@ -408,12 +427,12 @@ class StoreManager {
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('courses-updated'));
         }
-        return true;
+        return targetCourse;
     }
 
-    // Delete a course
     deleteCourse(courseId) {
-        this.courses = (this.courses || []).filter(c => c && c.id !== courseId);
+        this.deletedCourseIds.add(courseId);
+        this.courses = this.getCourses().filter(c => c && c.id !== courseId);
         
         if (this.progress[courseId]) {
             delete this.progress[courseId];
@@ -434,9 +453,9 @@ class StoreManager {
         }
     }
 
-    // Add or update lesson in a course
     saveLesson(courseId, lessonData) {
-        const course = (this.getCourses()).find(c => c.id === courseId);
+        const currentCourses = this.getCourses();
+        const course = currentCourses.find(c => c.id === courseId);
         if (!course) return false;
 
         if (!course.lessons) course.lessons = [];
@@ -463,6 +482,9 @@ class StoreManager {
             course.lessons.push(lessonPayload);
         }
 
+        course.updatedAt = Date.now();
+        this.courses = currentCourses;
+
         try {
             localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(this.courses));
         } catch (e) {}
@@ -477,12 +499,14 @@ class StoreManager {
         return lessonPayload;
     }
 
-    // Delete a lesson from a course
     deleteLesson(courseId, lessonId) {
-        const course = (this.getCourses()).find(c => c.id === courseId);
+        const currentCourses = this.getCourses();
+        const course = currentCourses.find(c => c.id === courseId);
         if (!course) return false;
 
         course.lessons = (course.lessons || []).filter(l => l && l.id !== lessonId);
+        course.updatedAt = Date.now();
+        this.courses = currentCourses;
 
         this.toggleLessonComplete(courseId, lessonId, false);
 
@@ -500,7 +524,7 @@ class StoreManager {
         return true;
     }
 
-    // Progress Engine Methods
+    // ==================== PROGRESS METHODS ====================
     getProgressKey(courseId) {
         const student = this.getCurrentStudent();
         if (student && student.id) {
@@ -600,12 +624,7 @@ class StoreManager {
         let completed = this.progress[key].completedLessons || [];
         const isAlreadyComplete = completed.includes(lessonId);
 
-        let newState;
-        if (forceState !== null) {
-            newState = forceState;
-        } else {
-            newState = !isAlreadyComplete;
-        }
+        let newState = forceState !== null ? forceState : !isAlreadyComplete;
 
         if (newState && !isAlreadyComplete) {
             completed.push(lessonId);
@@ -686,24 +705,33 @@ class StoreManager {
         return 0;
     }
 
-    // Student Authentication Methods
+    // ==================== STUDENT AUTH METHODS ====================
     getStudents() {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+            if (saved) this.students = JSON.parse(saved);
+        } catch (e) {}
         return this.students || [];
     }
 
     getCurrentStudent() {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_STUDENT);
+            if (saved) this.currentStudent = JSON.parse(saved);
+        } catch (e) {}
         return this.currentStudent;
     }
 
     registerStudent({ fullName, sucCode, email, password }) {
+        const allStudents = this.getStudents();
         const normSuc = sucCode.trim().toLowerCase();
         const normEmail = email.trim().toLowerCase();
 
-        const sucExists = (this.students || []).some(s => s.sucCode && s.sucCode.toLowerCase() === normSuc);
+        const sucExists = allStudents.some(s => s.sucCode && s.sucCode.toLowerCase() === normSuc);
         if (sucExists) {
             return { error: 'This Student SUC Code is already registered. Please log in.' };
         }
-        const emailExists = (this.students || []).some(s => s.email && s.email.toLowerCase() === normEmail);
+        const emailExists = allStudents.some(s => s.email && s.email.toLowerCase() === normEmail);
         if (emailExists) {
             return { error: 'This Student Email is already registered. Please log in.' };
         }
@@ -717,7 +745,8 @@ class StoreManager {
             createdAt: Date.now()
         };
 
-        this.students.push(newStudent);
+        allStudents.push(newStudent);
+        this.students = allStudents;
         this.currentStudent = newStudent;
 
         try {
@@ -736,12 +765,214 @@ class StoreManager {
     }
 
     loginStudent(identifier, password) {
+        const allStudents = this.getStudents();
         const normId = identifier.trim().toLowerCase();
 
-        const found = (this.students || []).find(s => 
+        const found = allStudents.find(s => 
             (s.sucCode && s.sucCode.toLowerCase() === normId) || 
             (s.email && s.email.toLowerCase() === normId)
         );
 
         if (!found) {
-            return { error: 'No student account found with this SUC
+            return { error: 'No student account found with this SUC Code or Email.' };
+        }
+
+        if (found.password !== password) {
+            return { error: 'Incorrect password. Please check and try again.' };
+        }
+
+        this.currentStudent = found;
+
+        try {
+            localStorage.setItem(STORAGE_KEYS.CURRENT_STUDENT, JSON.stringify(found));
+        } catch (e) {}
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('student-auth-changed'));
+        }
+        return { success: true, student: found };
+    }
+
+    loginOrRegisterAbhyasStudent({ name, email, group, sucCode, password }) {
+        const allStudents = this.getStudents();
+        const normSuc = (sucCode || '').trim().toUpperCase();
+        const normEmail = (email || '').trim().toLowerCase();
+
+        let found = allStudents.find(s => 
+            (s.sucCode && s.sucCode.toUpperCase() === normSuc) || 
+            (s.email && s.email.toLowerCase() === normEmail)
+        );
+
+        if (!found) {
+            found = {
+                id: 'std-abhyas-' + Date.now(),
+                fullName: name,
+                sucCode: normSuc,
+                email: normEmail,
+                group: group || '',
+                isAbhyas: true,
+                createdAt: Date.now()
+            };
+            if (password) found.password = password;
+            allStudents.push(found);
+        } else {
+            found.fullName = name || found.fullName;
+            found.group = group || found.group;
+            found.sucCode = normSuc || found.sucCode;
+            if (password) found.password = password;
+        }
+
+        this.students = allStudents;
+        this.currentStudent = found;
+        try {
+            localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(this.students));
+            localStorage.setItem(STORAGE_KEYS.CURRENT_STUDENT, JSON.stringify(found));
+        } catch (e) {}
+
+        if (typeof window !== 'undefined' && window.UseasFirebase) {
+            window.UseasFirebase.saveStudentToCloud(found);
+        }
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('student-auth-changed'));
+        }
+        return { success: true, student: found };
+    }
+
+    getStudentBySucOrEmail(sucCode, email) {
+        const allStudents = this.getStudents();
+        const normSuc = (sucCode || '').trim().toUpperCase();
+        const normEmail = (email || '').trim().toLowerCase();
+
+        return allStudents.find(s => 
+            (s.sucCode && s.sucCode.toUpperCase() === normSuc) || 
+            (s.email && s.email.toLowerCase() === normEmail)
+        ) || null;
+    }
+
+    logoutStudent() {
+        this.currentStudent = null;
+        try {
+            localStorage.removeItem(STORAGE_KEYS.CURRENT_STUDENT);
+        } catch (e) {}
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('student-auth-changed'));
+        }
+    }
+
+    // ==================== COURSE REGISTRATION METHODS ====================
+    getCourseRegistrations() {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEYS.REGISTRATIONS);
+            if (saved) this.registrations = JSON.parse(saved);
+        } catch (e) {}
+        return this.registrations || [];
+    }
+
+    isStudentRegisteredForCourse(courseId, student) {
+        if (!student) return false;
+        const regs = this.getCourseRegistrations();
+        const studentIdentifier = (student.sucCode || student.email || student.id || '').toLowerCase();
+        return regs.some(r => 
+            r.courseId === courseId && (
+                (r.sucCode && r.sucCode.toLowerCase() === studentIdentifier) ||
+                (r.email && r.email.toLowerCase() === studentIdentifier) ||
+                (r.studentId && r.studentId === student.id)
+            )
+        );
+    }
+
+    registerCourse(regData) {
+        const allRegs = this.getCourseRegistrations();
+        const newReg = {
+            id: 'reg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+            courseId: regData.courseId,
+            courseTitle: regData.courseTitle || '',
+            studentId: regData.studentId || '',
+            fullName: (regData.fullName || '').trim(),
+            sucCode: (regData.sucCode || '').trim().toUpperCase(),
+            collegeName: (regData.collegeName || '').trim(),
+            email: (regData.email || '').trim().toLowerCase(),
+            presentStudy: (regData.presentStudy || '').trim(),
+            registeredAt: Date.now()
+        };
+
+        const existingIdx = allRegs.findIndex(r => r.courseId === newReg.courseId && (
+            (r.sucCode && r.sucCode === newReg.sucCode) || 
+            (r.email && r.email === newReg.email)
+        ));
+
+        if (existingIdx >= 0) {
+            allRegs[existingIdx] = newReg;
+        } else {
+            allRegs.push(newReg);
+        }
+
+        this.registrations = allRegs;
+
+        try {
+            localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(this.registrations));
+        } catch (e) {}
+
+        if (typeof window !== 'undefined' && window.UseasFirebase) {
+            window.UseasFirebase.saveRegistrationToCloud(newReg);
+        }
+
+        const currentStudent = this.getCurrentStudent();
+        if (currentStudent && (newReg.collegeName || newReg.presentStudy)) {
+            currentStudent.collegeName = newReg.collegeName || currentStudent.collegeName || '';
+            currentStudent.presentStudy = newReg.presentStudy || currentStudent.presentStudy || '';
+
+            const allStudents = this.getStudents();
+            const sIdx = allStudents.findIndex(s => s.id === currentStudent.id || s.sucCode === currentStudent.sucCode);
+            if (sIdx >= 0) {
+                allStudents[sIdx] = currentStudent;
+                this.students = allStudents;
+                try {
+                    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(this.students));
+                    localStorage.setItem(STORAGE_KEYS.CURRENT_STUDENT, JSON.stringify(currentStudent));
+                } catch (e) {}
+
+                if (typeof window !== 'undefined' && window.UseasFirebase) {
+                    window.UseasFirebase.saveStudentToCloud(currentStudent);
+                }
+            }
+        }
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('registrations-updated'));
+        }
+
+        return { success: true, registration: newReg };
+    }
+
+    resetToDefault() {
+        this.getCourses().forEach(c => this.deletedCourseIds.add(c.id));
+        this.courses = [];
+        this.progress = {};
+        this.registrations = [];
+
+        try {
+            localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify([]));
+            localStorage.setItem(STORAGE_KEYS.PROGRESS, JSON.stringify({}));
+            localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify([]));
+        } catch (e) {}
+
+        if (typeof window !== 'undefined' && window.UseasFirebase) {
+            window.UseasFirebase.resetCoursesInCloud();
+            window.UseasFirebase.syncProgressToCloud({});
+            window.UseasFirebase.syncRegistrationsToCloud([]);
+        }
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('courses-updated'));
+            window.dispatchEvent(new CustomEvent('progress-updated'));
+            window.dispatchEvent(new CustomEvent('registrations-updated'));
+        }
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.UseasStore = new StoreManager();
+}
