@@ -272,21 +272,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Replace toggleFullscreen() in app.js with:
     function toggleFullscreen() {
         const container = document.getElementById('videoContainer') || document.getElementById('videoWrapper');
         const icon = document.getElementById('fullscreenIcon');
         if (!container) return;
 
-        if (!document.fullscreenElement) {
-            container.requestFullscreen().then(() => {
-                if (icon) icon.className = 'fa-solid fa-compress';
-            }).catch(() => {});
+        const fsElem = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+        if (!fsElem) {
+            const reqFs = container.requestFullscreen || container.webkitRequestFullscreen || container.msRequestFullscreen;
+            if (reqFs) {
+                reqFs.call(container).then(() => {
+                    if (icon) icon.className = 'fa-solid fa-compress';
+                }).catch(() => {});
+            }
         } else {
-            document.exitFullscreen().then(() => {
-                if (icon) icon.className = 'fa-solid fa-expand';
-            }).catch(() => {});
+            const exitFs = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+            if (exitFs) {
+                exitFs.call(document).then(() => {
+                    if (icon) icon.className = 'fa-solid fa-expand';
+                }).catch(() => {});
+            }
         }
     }
+
+    document.addEventListener('fullscreenchange', () => {
+        const icon = document.getElementById('fullscreenIcon');
+        if (icon) {
+            icon.className = document.fullscreenElement ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
+        }
+    });
 
     function handleMouseMoveControls() {
         const controlsBar = document.getElementById('customVideoControlsBar');
