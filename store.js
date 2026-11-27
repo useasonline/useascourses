@@ -1,7 +1,6 @@
 /**
  * useas - Data Store & State Management Module
- * Manages courses, lessons, YouTube video URL parsing, completion progress, and Firebase sync.
- * Implements Production Realtime Database Backend (Child Node RTDB Sync) for GitHub Pages Deployment.
+ * Manages courses, lessons, YouTube video URL parsing, completion progress, admin profile, and Firebase sync.
  */
 
 const STORAGE_KEYS = {
@@ -9,7 +8,16 @@ const STORAGE_KEYS = {
     PROGRESS: 'useas_progress_v1',
     STUDENTS: 'useas_students_v1',
     CURRENT_STUDENT: 'useas_current_student_v1',
-    REGISTRATIONS: 'useas_registrations_v1'
+    REGISTRATIONS: 'useas_registrations_v1',
+    ADMIN_PROFILE: 'useas_admin_profile_v1',
+    ADMIN_SESSION: 'useas_admin_session_v1'
+};
+
+const DEFAULT_ADMIN_PROFILE = {
+    email: 'ssrdevelopers@gmail.com',
+    name: 'SSR Developers Admin',
+    password: 'adminpassword',
+    photo: ''
 };
 
 // Default Courses initialized with multi-type lessons (Video, Text Page, Proctored Exam)
@@ -132,6 +140,7 @@ class StoreManager {
         this.students = [];
         this.registrations = [];
         this.currentStudent = null;
+        this.adminProfile = { ...DEFAULT_ADMIN_PROFILE };
         this.hasSeededDefaults = false;
 
         this.initStore();
@@ -140,6 +149,15 @@ class StoreManager {
 
     initStore() {
         try {
+            // Load Admin Profile
+            const savedAdmin = localStorage.getItem(STORAGE_KEYS.ADMIN_PROFILE);
+            if (savedAdmin) {
+                this.adminProfile = { ...DEFAULT_ADMIN_PROFILE, ...JSON.parse(savedAdmin) };
+            } else {
+                this.adminProfile = { ...DEFAULT_ADMIN_PROFILE };
+                localStorage.setItem(STORAGE_KEYS.ADMIN_PROFILE, JSON.stringify(this.adminProfile));
+            }
+
             // Load Courses from localStorage
             const savedCourses = localStorage.getItem(STORAGE_KEYS.COURSES);
             if (savedCourses) {
@@ -172,16 +190,27 @@ class StoreManager {
             this.students = [];
             this.currentStudent = null;
             this.registrations = [];
+            this.adminProfile = { ...DEFAULT_ADMIN_PROFILE };
         }
     }
 
     setupFirebaseSync() {
         const attachListeners = () => {
             if (typeof window !== 'undefined' && window.UseasFirebase) {
+                // Firebase Realtime Listener: Admin Profile
+                window.UseasFirebase.listenAdminProfile((cloudAdmin) => {
+                    if (cloudAdmin && typeof cloudAdmin === 'object') {
+                        this.adminProfile = { ...DEFAULT_ADMIN_PROFILE, ...cloudAdmin };
+                        localStorage.setItem(STORAGE_KEYS.ADMIN_PROFILE, JSON.stringify(this.adminProfile));
+                        if (typeof window !== 'undefined') {
+                            window.dispatchEvent(new CustomEvent('admin-profile-updated'));
+                        }
+                    }
+                });
+
                 // Firebase Realtime Listener: Courses
                 window.UseasFirebase.listenCourses((cloudCourses) => {
                     if (cloudCourses === null) {
-                        // Firebase DB /courses is empty (first deployment) -> seed DEFAULT_COURSES once
                         if (!this.hasSeededDefaults) {
                             this.hasSeededDefaults = true;
                             this.courses = DEFAULT_COURSES;
@@ -255,7 +284,65 @@ class StoreManager {
         }
     }
 
-    // Helper: Extract YouTube Video ID from any URL format cleanly (watch, shorts, embed, youtu.be, etc.)
+    // Admin Authentication & Profile Management
+    getAdminProfile() {
+        return { ...DEFAULT_ADMIN_PROFILE, ...(this.adminProfile || {}) };
+    }
+
+    verifyAdminLogin(identifier, password) {
+        const profile = this.getAdminProfile();
+        const normId = (identifier || '').trim().toLowerCase();
+        const validEmail = (profile.email || '').trim().toLowerCase();
+        const validName = (profile.name || '').trim().toLowerCase();
+
+        if ((normId === validEmail || normId === validName) && password === profile.password) {
+            try {
+                sessionStorage.setItem(STORAGE_KEYS.ADMIN_SESSION, 'true');
+            } catch (e) {}
+            return { success: true, profile };
+        }
+        return { error: 'Invalid Admin Email/Name or Password.' };
+    }
+
+    isAdminAuthenticated() {
+        try {
+            return sessionStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    logoutAdmin() {
+        try {
+            sessionStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION);
+        } catch (e) {}
+    }
+
+    updateAdminProfile(updates) {
+        const current = this.getAdminProfile();
+        this.adminProfile = {
+            ...current,
+            email: (updates.email !== undefined ? updates.email.trim() : current.email) || current.email,
+            name: (updates.name !== undefined ? updates.name.trim() : current.name) || current.name,
+            password: (updates.password && updates.password.trim() !== '') ? updates.password : current.password,
+            photo: updates.photo !== undefined ? updates.photo : current.photo
+        };
+
+        try {
+            localStorage.setItem(STORAGE_KEYS.ADMIN_PROFILE, JSON.stringify(this.adminProfile));
+        } catch (e) {}
+
+        if (typeof window !== 'undefined' && window.UseasFirebase) {
+            window.UseasFirebase.saveAdminProfileToCloud(this.adminProfile);
+        }
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('admin-profile-updated'));
+        }
+        return this.adminProfile;
+    }
+
+    // Helper: Extract YouTube Video ID from any URL format cleanly
     extractYoutubeId(urlOrId) {
         if (!urlOrId) return '';
         const trimmed = urlOrId.trim();
@@ -286,7 +373,7 @@ class StoreManager {
         return (this.getCourses()).find(c => c.id === courseId) || null;
     }
 
-    // Save or update a course (Instant Local + Direct Firebase Node Save)
+    // Save or update a course
     saveCourse(courseData) {
         if (!this.courses) this.courses = [];
         const existingIndex = this.courses.findIndex(c => c && c.id === courseData.id);
@@ -308,15 +395,12 @@ class StoreManager {
             this.courses.unshift(targetCourse);
         }
 
-        // Clean array
         this.courses = this.courses.filter(c => c && typeof c === 'object' && c.id);
 
-        // Save to local cache
         try {
             localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(this.courses));
         } catch (e) {}
 
-        // Firebase Cloud Push (Specific Course Node Push)
         if (typeof window !== 'undefined' && window.UseasFirebase) {
             window.UseasFirebase.saveCourseToCloud(targetCourse);
         }
@@ -331,18 +415,15 @@ class StoreManager {
     deleteCourse(courseId) {
         this.courses = (this.courses || []).filter(c => c && c.id !== courseId);
         
-        // Clean up progress for this course
         if (this.progress[courseId]) {
             delete this.progress[courseId];
         }
 
-        // Save to local cache
         try {
             localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(this.courses));
             localStorage.setItem(STORAGE_KEYS.PROGRESS, JSON.stringify(this.progress));
         } catch (e) {}
 
-        // Delete from Firebase Cloud Node
         if (typeof window !== 'undefined' && window.UseasFirebase) {
             window.UseasFirebase.deleteCourseFromCloud(courseId);
         }
@@ -382,12 +463,10 @@ class StoreManager {
             course.lessons.push(lessonPayload);
         }
 
-        // Save local cache
         try {
             localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(this.courses));
         } catch (e) {}
 
-        // Save parent course node to Firebase Cloud
         if (typeof window !== 'undefined' && window.UseasFirebase) {
             window.UseasFirebase.saveCourseToCloud(course);
         }
@@ -405,15 +484,12 @@ class StoreManager {
 
         course.lessons = (course.lessons || []).filter(l => l && l.id !== lessonId);
 
-        // Clean from completion progress
         this.toggleLessonComplete(courseId, lessonId, false);
 
-        // Save local cache
         try {
             localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(this.courses));
         } catch (e) {}
 
-        // Save updated parent course node to Firebase Cloud
         if (typeof window !== 'undefined' && window.UseasFirebase) {
             window.UseasFirebase.saveCourseToCloud(course);
         }
@@ -623,7 +699,6 @@ class StoreManager {
         const normSuc = sucCode.trim().toLowerCase();
         const normEmail = email.trim().toLowerCase();
 
-        // Check uniqueness
         const sucExists = (this.students || []).some(s => s.sucCode && s.sucCode.toLowerCase() === normSuc);
         if (sucExists) {
             return { error: 'This Student SUC Code is already registered. Please log in.' };
@@ -669,193 +744,4 @@ class StoreManager {
         );
 
         if (!found) {
-            return { error: 'No student account found with this SUC Code or Email.' };
-        }
-
-        if (found.password !== password) {
-            return { error: 'Incorrect password. Please check and try again.' };
-        }
-
-        this.currentStudent = found;
-
-        try {
-            localStorage.setItem(STORAGE_KEYS.CURRENT_STUDENT, JSON.stringify(found));
-        } catch (e) {}
-
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('student-auth-changed'));
-        }
-        return { success: true, student: found };
-    }
-
-    loginOrRegisterAbhyasStudent({ name, email, group, sucCode, password }) {
-        const normSuc = (sucCode || '').trim().toUpperCase();
-        const normEmail = (email || '').trim().toLowerCase();
-
-        let found = (this.students || []).find(s => 
-            (s.sucCode && s.sucCode.toUpperCase() === normSuc) || 
-            (s.email && s.email.toLowerCase() === normEmail)
-        );
-
-        if (!found) {
-            found = {
-                id: 'std-abhyas-' + Date.now(),
-                fullName: name,
-                sucCode: normSuc,
-                email: normEmail,
-                group: group || '',
-                isAbhyas: true,
-                createdAt: Date.now()
-            };
-            if (password) found.password = password;
-            this.students.push(found);
-        } else {
-            found.fullName = name || found.fullName;
-            found.group = group || found.group;
-            found.sucCode = normSuc || found.sucCode;
-            if (password) found.password = password;
-        }
-
-        this.currentStudent = found;
-        try {
-            localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(this.students));
-            localStorage.setItem(STORAGE_KEYS.CURRENT_STUDENT, JSON.stringify(found));
-        } catch (e) {}
-
-        if (typeof window !== 'undefined' && window.UseasFirebase) {
-            window.UseasFirebase.saveStudentToCloud(found);
-        }
-
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('student-auth-changed'));
-        }
-        return { success: true, student: found };
-    }
-
-    getStudentBySucOrEmail(sucCode, email) {
-        const normSuc = (sucCode || '').trim().toUpperCase();
-        const normEmail = (email || '').trim().toLowerCase();
-
-        return (this.students || []).find(s => 
-            (s.sucCode && s.sucCode.toUpperCase() === normSuc) || 
-            (s.email && s.email.toLowerCase() === normEmail)
-        ) || null;
-    }
-
-    logoutStudent() {
-        this.currentStudent = null;
-        try {
-            localStorage.removeItem(STORAGE_KEYS.CURRENT_STUDENT);
-        } catch (e) {}
-
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('student-auth-changed'));
-        }
-    }
-
-    // Course Registration Methods
-    getCourseRegistrations() {
-        return this.registrations || [];
-    }
-
-    isStudentRegisteredForCourse(courseId, student) {
-        if (!student) return false;
-        const regs = this.getCourseRegistrations();
-        const studentIdentifier = (student.sucCode || student.email || student.id || '').toLowerCase();
-        return regs.some(r => 
-            r.courseId === courseId && (
-                (r.sucCode && r.sucCode.toLowerCase() === studentIdentifier) ||
-                (r.email && r.email.toLowerCase() === studentIdentifier) ||
-                (r.studentId && r.studentId === student.id)
-            )
-        );
-    }
-
-    registerCourse(regData) {
-        const newReg = {
-            id: 'reg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
-            courseId: regData.courseId,
-            courseTitle: regData.courseTitle || '',
-            studentId: regData.studentId || '',
-            fullName: (regData.fullName || '').trim(),
-            sucCode: (regData.sucCode || '').trim().toUpperCase(),
-            collegeName: (regData.collegeName || '').trim(),
-            email: (regData.email || '').trim().toLowerCase(),
-            presentStudy: (regData.presentStudy || '').trim(),
-            registeredAt: Date.now()
-        };
-
-        const existingIdx = (this.registrations || []).findIndex(r => r.courseId === newReg.courseId && (
-            (r.sucCode && r.sucCode === newReg.sucCode) || 
-            (r.email && r.email === newReg.email)
-        ));
-
-        if (existingIdx >= 0) {
-            this.registrations[existingIdx] = newReg;
-        } else {
-            this.registrations.push(newReg);
-        }
-
-        try {
-            localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(this.registrations));
-        } catch (e) {}
-
-        if (typeof window !== 'undefined' && window.UseasFirebase) {
-            window.UseasFirebase.saveRegistrationToCloud(newReg);
-        }
-
-        const currentStudent = this.getCurrentStudent();
-        if (currentStudent && (newReg.collegeName || newReg.presentStudy)) {
-            currentStudent.collegeName = newReg.collegeName || currentStudent.collegeName || '';
-            currentStudent.presentStudy = newReg.presentStudy || currentStudent.presentStudy || '';
-
-            const sIdx = this.students.findIndex(s => s.id === currentStudent.id || s.sucCode === currentStudent.sucCode);
-            if (sIdx >= 0) {
-                this.students[sIdx] = currentStudent;
-                try {
-                    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(this.students));
-                    localStorage.setItem(STORAGE_KEYS.CURRENT_STUDENT, JSON.stringify(currentStudent));
-                } catch (e) {}
-
-                if (typeof window !== 'undefined' && window.UseasFirebase) {
-                    window.UseasFirebase.saveStudentToCloud(currentStudent);
-                }
-            }
-        }
-
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('registrations-updated'));
-        }
-
-        return { success: true, registration: newReg };
-    }
-
-    resetToDefault() {
-        this.courses = [];
-        this.progress = {};
-        this.registrations = [];
-
-        try {
-            localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify([]));
-            localStorage.setItem(STORAGE_KEYS.PROGRESS, JSON.stringify({}));
-            localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify([]));
-        } catch (e) {}
-
-        if (typeof window !== 'undefined' && window.UseasFirebase) {
-            window.UseasFirebase.resetCoursesInCloud();
-            window.UseasFirebase.syncProgressToCloud({});
-            window.UseasFirebase.syncRegistrationsToCloud([]);
-        }
-
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('courses-updated'));
-            window.dispatchEvent(new CustomEvent('progress-updated'));
-            window.dispatchEvent(new CustomEvent('registrations-updated'));
-        }
-    }
-}
-
-// Global Store Instance
-if (typeof window !== 'undefined') {
-    window.UseasStore = new StoreManager();
-}
+            return { error: 'No student account found with this SUC
