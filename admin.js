@@ -1,9 +1,32 @@
 /**
  * useas - Admin Portal Application Script (admin.js)
- * Handles course CRUD operations, YouTube video lesson additions, video previews, & dashboard stats.
+ * Handles admin authentication, profile/password/photo settings, course CRUD, and dashboard stats.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Admin Auth Gate Elements
+    const adminLoginGate = document.getElementById('adminLoginGate');
+    const adminLoginForm = document.getElementById('adminLoginForm');
+    const adminLoginEmailInput = document.getElementById('adminLoginEmailInput');
+    const adminLoginPasswordInput = document.getElementById('adminLoginPasswordInput');
+    const adminLoginError = document.getElementById('adminLoginError');
+    const adminMainContent = document.getElementById('adminMainContent');
+    const adminLogoutBtn = document.getElementById('adminLogoutBtn');
+
+    // Admin Profile & Settings Elements
+    const openAdminSettingsBtn = document.getElementById('openAdminSettingsBtn');
+    const adminSettingsModal = document.getElementById('adminSettingsModal');
+    const closeAdminSettingsBtn = document.getElementById('closeAdminSettingsBtn');
+    const cancelAdminSettingsBtn = document.getElementById('cancelAdminSettingsBtn');
+    const adminSettingsForm = document.getElementById('adminSettingsForm');
+    const adminEmailSettingInput = document.getElementById('adminEmailSettingInput');
+    const adminNameSettingInput = document.getElementById('adminNameSettingInput');
+    const adminNewPasswordInput = document.getElementById('adminNewPasswordInput');
+    const adminConfirmPasswordInput = document.getElementById('adminConfirmPasswordInput');
+    const adminPhotoFileInput = document.getElementById('adminPhotoFileInput');
+    const adminPhotoUrlInput = document.getElementById('adminPhotoUrlInput');
+    const removeAdminPhotoBtn = document.getElementById('removeAdminPhotoBtn');
+
     // Dashboard Stats Elements
     const statTotalCourses = document.getElementById('statTotalCourses');
     const statTotalLessons = document.getElementById('statTotalLessons');
@@ -52,21 +75,93 @@ document.addEventListener('DOMContentLoaded', () => {
     // State
     let activeManagingCourseId = null;
     let regSearchQuery = '';
+    let tempAdminPhotoData = '';
 
     // Initialize Admin Console
+    initAdminAuth();
     initAdmin();
+
+    function initAdminAuth() {
+        checkAdminSession();
+
+        if (adminLoginForm) {
+            adminLoginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                if (adminLoginError) adminLoginError.style.display = 'none';
+
+                const emailOrName = adminLoginEmailInput.value.trim();
+                const password = adminLoginPasswordInput.value;
+
+                const result = window.UseasStore.verifyAdminLogin(emailOrName, password);
+                if (result.success) {
+                    adminLoginForm.reset();
+                    checkAdminSession();
+                    showToast('Welcome to the Admin Console!', 'success');
+                } else {
+                    if (adminLoginError) {
+                        adminLoginError.textContent = result.error;
+                        adminLoginError.style.display = 'block';
+                    }
+                }
+            });
+        }
+
+        if (adminLogoutBtn) {
+            adminLogoutBtn.addEventListener('click', () => {
+                window.UseasStore.logoutAdmin();
+                checkAdminSession();
+                showToast('Admin session locked.', 'info');
+            });
+        }
+    }
+
+    function checkAdminSession() {
+        const isAuth = window.UseasStore.isAdminAuthenticated();
+        if (isAuth) {
+            if (adminLoginGate) adminLoginGate.classList.remove('active');
+            if (adminMainContent) adminMainContent.style.display = 'block';
+            updateAdminHeaderProfile();
+        } else {
+            if (adminLoginGate) adminLoginGate.classList.add('active');
+            if (adminMainContent) adminMainContent.style.display = 'none';
+        }
+    }
+
+    function updateAdminHeaderProfile() {
+        const profile = window.UseasStore.getAdminProfile();
+        const navAdminPhoto = document.getElementById('navAdminPhoto');
+        const navAdminAvatarFallback = document.getElementById('navAdminAvatarFallback');
+        const navAdminNameText = document.getElementById('navAdminNameText');
+
+        const displayName = profile.name || profile.email || 'Admin';
+        const initial = displayName.charAt(0).toUpperCase();
+
+        if (navAdminNameText) navAdminNameText.textContent = displayName;
+        if (navAdminAvatarFallback) navAdminAvatarFallback.textContent = initial;
+
+        if (profile.photo && navAdminPhoto) {
+            navAdminPhoto.src = profile.photo;
+            navAdminPhoto.style.display = 'block';
+            if (navAdminAvatarFallback) navAdminAvatarFallback.style.display = 'none';
+        } else {
+            if (navAdminPhoto) navAdminPhoto.style.display = 'none';
+            if (navAdminAvatarFallback) navAdminAvatarFallback.style.display = 'flex';
+        }
+    }
 
     function initAdmin() {
         renderAdminDashboard();
         renderAdminRegistrations();
         setupAdminEventListeners();
+        setupAdminSettingsHandlers();
 
-        // Listen for live Firebase cloud sync & storage updates
         window.addEventListener('courses-updated', () => renderAdminDashboard());
         window.addEventListener('registrations-updated', () => renderAdminRegistrations());
+        window.addEventListener('admin-profile-updated', () => updateAdminHeaderProfile());
         window.addEventListener('storage', (e) => {
             if (e.key === 'useas_courses_v1') renderAdminDashboard();
             if (e.key === 'useas_registrations_v1') renderAdminRegistrations();
+            if (e.key === 'useas_admin_profile_v1') updateAdminHeaderProfile();
         });
 
         if (adminRegSearchInput) {
@@ -77,13 +172,129 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function setupAdminSettingsHandlers() {
+        const updatePhotoPreview = (photoSrc, nameText) => {
+            const previewImg = document.getElementById('settingsAdminPhotoPreview');
+            const fallbackDiv = document.getElementById('settingsAdminAvatarFallback');
+            const initial = (nameText || 'A').trim().charAt(0).toUpperCase();
+
+            if (fallbackDiv) fallbackDiv.textContent = initial;
+
+            if (photoSrc) {
+                if (previewImg) {
+                    previewImg.src = photoSrc;
+                    previewImg.style.display = 'block';
+                }
+                if (fallbackDiv) fallbackDiv.style.display = 'none';
+                if (removeAdminPhotoBtn) removeAdminPhotoBtn.style.display = 'inline-flex';
+            } else {
+                if (previewImg) {
+                    previewImg.src = '';
+                    previewImg.style.display = 'none';
+                }
+                if (fallbackDiv) fallbackDiv.style.display = 'flex';
+                if (removeAdminPhotoBtn) removeAdminPhotoBtn.style.display = 'none';
+            }
+        };
+
+        if (openAdminSettingsBtn) {
+            openAdminSettingsBtn.addEventListener('click', () => {
+                const profile = window.UseasStore.getAdminProfile();
+                adminEmailSettingInput.value = profile.email || 'ssrdevelopers@gmail.com';
+                adminNameSettingInput.value = profile.name || 'SSR Developers Admin';
+                adminNewPasswordInput.value = '';
+                adminConfirmPasswordInput.value = '';
+                tempAdminPhotoData = profile.photo || '';
+                adminPhotoUrlInput.value = (profile.photo && !profile.photo.startsWith('data:')) ? profile.photo : '';
+                updatePhotoPreview(tempAdminPhotoData, profile.name || profile.email);
+
+                adminSettingsModal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            });
+        }
+
+        const closeSettings = () => {
+            adminSettingsModal.classList.remove('active');
+            document.body.style.overflow = 'auto';
+        };
+
+        if (closeAdminSettingsBtn) closeAdminSettingsBtn.addEventListener('click', closeSettings);
+        if (cancelAdminSettingsBtn) cancelAdminSettingsBtn.addEventListener('click', closeSettings);
+
+        if (adminPhotoFileInput) {
+            adminPhotoFileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    tempAdminPhotoData = ev.target.result;
+                    adminPhotoUrlInput.value = '';
+                    updatePhotoPreview(tempAdminPhotoData, adminNameSettingInput.value);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        if (adminPhotoUrlInput) {
+            adminPhotoUrlInput.addEventListener('input', (e) => {
+                const val = e.target.value.trim();
+                tempAdminPhotoData = val;
+                updatePhotoPreview(tempAdminPhotoData, adminNameSettingInput.value);
+            });
+        }
+
+        if (removeAdminPhotoBtn) {
+            removeAdminPhotoBtn.addEventListener('click', () => {
+                tempAdminPhotoData = '';
+                adminPhotoUrlInput.value = '';
+                adminPhotoFileInput.value = '';
+                updatePhotoPreview('', adminNameSettingInput.value);
+            });
+        }
+
+        if (adminSettingsForm) {
+            adminSettingsForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const newEmail = adminEmailSettingInput.value.trim();
+                const newName = adminNameSettingInput.value.trim();
+                const newPass = adminNewPasswordInput.value;
+                const confirmPass = adminConfirmPasswordInput.value;
+
+                if (!newEmail || !newName) {
+                    showToast('Admin email and display name are required.', 'danger');
+                    return;
+                }
+
+                if (newPass || confirmPass) {
+                    if (newPass.length < 4) {
+                        showToast('Password must be at least 4 characters long.', 'danger');
+                        return;
+                    }
+                    if (newPass !== confirmPass) {
+                        showToast('New passwords do not match!', 'danger');
+                        return;
+                    }
+                }
+
+                window.UseasStore.updateAdminProfile({
+                    email: newEmail,
+                    name: newName,
+                    password: newPass || undefined,
+                    photo: tempAdminPhotoData
+                });
+
+                updateAdminHeaderProfile();
+                closeSettings();
+                showToast('Admin profile & credentials updated successfully!', 'success');
+            });
+        }
+    }
+
     function setupAdminEventListeners() {
-        // Add Course Button
         if (openAddCourseBtn) {
             openAddCourseBtn.addEventListener('click', openAddCourseModal);
         }
 
-        // Reset / Clear Courses Button
         if (resetDemoBtn) {
             resetDemoBtn.addEventListener('click', () => {
                 if (confirm('Are you sure you want to clear all courses from Firebase Realtime Database?')) {
@@ -94,7 +305,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Course Modal Close
         if (closeCourseModalBtn) closeCourseModalBtn.addEventListener('click', closeCourseModal);
         if (cancelCourseBtn) cancelCourseBtn.addEventListener('click', closeCourseModal);
 
@@ -104,12 +314,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Course Form Submit
         if (courseForm) {
             courseForm.addEventListener('submit', handleCourseSubmit);
         }
 
-        // Lessons Modal Close
         if (closeLessonsModalBtn) {
             closeLessonsModalBtn.addEventListener('click', closeLessonsModal);
         }
@@ -120,25 +328,22 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Keyboard ESC Listener
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 closeCourseModal();
                 closeLessonsModal();
+                if (adminSettingsModal) adminSettingsModal.classList.remove('active');
             }
         });
 
-        // Lesson Form Submit
         if (lessonForm) {
             lessonForm.addEventListener('submit', handleLessonSubmit);
         }
 
-        // Video Preview Button
         if (previewBtn) {
             previewBtn.addEventListener('click', handleVideoPreview);
         }
 
-        // Event Delegation for Table Action Buttons
         if (adminCoursesTableBody) {
             adminCoursesTableBody.addEventListener('click', (e) => {
                 const manageBtn = e.target.closest('.manage-lessons-btn');
@@ -165,11 +370,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Render Dashboard Table and Stats
     function renderAdminDashboard() {
         const courses = (window.UseasStore.getCourses() || []).filter(c => c && c.id);
 
-        // Calculate Stats
         const totalCourses = courses.length;
         let totalLessons = 0;
         const categoriesSet = new Set();
@@ -183,7 +386,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (statTotalLessons) statTotalLessons.textContent = totalLessons;
         if (statTotalCategories) statTotalCategories.textContent = categoriesSet.size;
 
-        // Render Table
         if (!adminCoursesTableBody) return;
 
         if (courses.length === 0) {
@@ -218,13 +420,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><span style="color: var(--text-muted);">${course.level || 'All Levels'}</span></td>
                     <td>
                         <span class="btn-sm" style="background: rgba(99, 102, 241, 0.1); color: var(--primary-dark); border: 1px solid rgba(99, 102, 241, 0.2);">
-                            <i class="fa-solid fa-video"></i> ${lessonCount} Videos
+                            <i class="fa-solid fa-video"></i> ${lessonCount} Lessons
                         </span>
                     </td>
                     <td>
                         <div style="display: flex; gap: 0.4rem;">
-                            <button class="btn btn-secondary btn-sm manage-lessons-btn" data-id="${course.id}" title="Add/Edit YouTube Videos">
-                                <i class="fa-solid fa-list-check"></i> Videos
+                            <button class="btn btn-secondary btn-sm manage-lessons-btn" data-id="${course.id}" title="Add/Edit Lessons">
+                                <i class="fa-solid fa-list-check"></i> Lessons
                             </button>
                             <button class="btn btn-secondary btn-sm edit-course-btn" data-id="${course.id}" title="Edit Course Details">
                                 <i class="fa-solid fa-pen"></i>
@@ -239,7 +441,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
     }
 
-    // Render Student Registrations Table in Admin Console
     function renderAdminRegistrations() {
         const regs = window.UseasStore.getCourseRegistrations();
 
@@ -298,7 +499,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
     }
 
-    // Add / Edit Course Modal Logic
     function openAddCourseModal() {
         courseForm.reset();
         courseIdInput.value = '';
@@ -355,7 +555,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         window.UseasStore.saveCourse(coursePayload);
 
-        // If an initial video URL was provided, add it as lesson #1
         if (isNewCourse && initialVideoUrl) {
             window.UseasStore.saveLesson(targetCourseId, {
                 title: '1. ' + coursePayload.title + ' Overview',
@@ -369,7 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAdminDashboard();
 
         if (isNewCourse) {
-            showToast('Course created! Opening Video Manager...', 'success');
+            showToast('Course created! Opening Lesson Manager...', 'success');
             setTimeout(() => {
                 openManageVideosModal(targetCourseId);
             }, 300);
@@ -389,7 +588,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Lesson Type Tabs & Dynamic Inputs
     let currentLessonType = 'video';
     let currentExamQuestions = [];
 
@@ -510,7 +708,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Manage Videos / Lessons Modal Logic
     function openManageVideosModal(courseId) {
         activeManagingCourseId = courseId;
         const course = window.UseasStore.getCourseById(courseId);
@@ -519,7 +716,6 @@ document.addEventListener('DOMContentLoaded', () => {
         manageCourseTitle.textContent = course.title;
         manageCourseCategory.textContent = course.category || 'General';
 
-        // Reset Form
         lessonForm.reset();
         lessonIdInput.value = '';
         currentExamQuestions = [];
@@ -539,7 +735,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (previewIframe) previewIframe.src = '';
         activeManagingCourseId = null;
         document.body.style.overflow = 'auto';
-        renderAdminDashboard(); // Refresh stats
+        renderAdminDashboard();
     }
 
     function renderLessonsTable(course) {
@@ -613,7 +809,6 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    // Delegation handler for lessons table
     if (lessonsTableContainer) {
         lessonsTableContainer.addEventListener('click', (e) => {
             const editBtn = e.target.closest('.edit-lesson-btn');
@@ -725,7 +920,6 @@ document.addEventListener('DOMContentLoaded', () => {
         videoPreviewWrap.style.display = 'block';
     }
 
-    // Helper: Toast Notifications (Centered Middle Screen Popup)
     function showToast(message, type = 'info') {
         if (!toastContainer) return;
 
