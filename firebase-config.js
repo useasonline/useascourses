@@ -39,6 +39,33 @@ window.UseasFirebase = {
     db,
     isConnected: true,
 
+    // Save or Update Admin Credentials & Profile
+    async saveAdminProfileToCloud(adminProfile) {
+        if (!adminProfile) return false;
+        try {
+            const clean = JSON.parse(JSON.stringify(adminProfile));
+            await set(ref(db, 'admin_profile'), clean);
+            return true;
+        } catch (err) {
+            console.error("Firebase saveAdminProfileToCloud error:", err);
+            return false;
+        }
+    },
+
+    listenAdminProfile(callback) {
+        try {
+            const adminRef = ref(db, 'admin_profile');
+            onValue(adminRef, (snapshot) => {
+                const data = snapshot.val();
+                callback(data || null);
+            }, (err) => {
+                console.warn("Firebase admin profile listener warning:", err);
+            });
+        } catch (e) {
+            console.warn("Could not attach Firebase admin profile listener:", e);
+        }
+    },
+
     // Save or Update Single Course Node
     async saveCourseToCloud(course) {
         if (!course || !course.id) return false;
