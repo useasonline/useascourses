@@ -1,10 +1,9 @@
 /**
  * useas - User Portal Application Script (app.js)
- * Handles course catalog rendering, category filtering, search, YouTube player modal, & progress tracking.
+ * Displays all admin-saved courses immediately, fits YouTube player without zoom, and enables fullscreen.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM Elements
     const coursesGrid = document.getElementById('coursesGrid');
     const searchInput = document.getElementById('searchInput');
     const categoryContainer = document.getElementById('categoryContainer');
@@ -23,7 +22,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const prevLessonBtn = document.getElementById('prevLessonBtn');
     const nextLessonBtn = document.getElementById('nextLessonBtn');
     const fullscreenBtn = document.getElementById('fullscreenBtn');
-    const toggleCompleteBtn = document.getElementById('toggleCompleteBtn');
 
     // App State
     let activeCategory = 'all';
@@ -33,30 +31,27 @@ document.addEventListener('DOMContentLoaded', () => {
     let ytPlayer = null;
     let playerTimeInterval = null;
     let isScrubbing = false;
-    let maxWatchedTime = 0; // Tracks furthest watched timestamp to prevent fast-forwarding
+    let maxWatchedTime = 0;
     let pendingResumeTimestamp = 0;
     let noItemAnimData = null;
     let activeNoItemAnim = null;
     let lockedAnimData = null;
     let activeLockedAnim = null;
 
-    // Pre-fetch Lottie No Item Animation JSON
     fetch('animations/no-item-found.json')
         .then(res => res.json())
         .then(data => {
             noItemAnimData = data;
-            // If empty state is currently visible, render immediately
             if (document.getElementById('lottieNoItemWrap') && !activeNoItemAnim && window.lottie) {
                 renderCourses();
             }
         })
-        .catch(err => console.log('Lottie prefetch notice:', err));
+        .catch(() => {});
 
-    // Pre-fetch Lottie Locked Animation JSON
     fetch('animations/locked.json')
         .then(res => res.json())
         .then(data => { lockedAnimData = data; })
-        .catch(err => console.log('Locked lottie prefetch notice:', err));
+        .catch(() => {});
 
     let latestYtCurrentTime = 0;
     let latestYtDuration = 0;
@@ -67,7 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let playbackSpeed = 1;
     let isPipActive = false;
     let hasPlayerError = false;
-    let controlsHideTimeout = null;
     let currentVideoId = '';
 
     // Window postMessage listener for YouTube Player Iframe
@@ -84,10 +78,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (typeof info.playerState === 'number') {
                     latestYtPlayerState = info.playerState;
-                    if (info.playerState === 1) { // PLAYING
+                    if (info.playerState === 1) {
                         isCurrentlyPlaying = true;
                         updatePlayPauseUI(true);
-                    } else if (info.playerState === 2 || info.playerState === 0) { // PAUSED or ENDED
+                    } else if (info.playerState === 2 || info.playerState === 0) {
                         isCurrentlyPlaying = false;
                         updatePlayPauseUI(false);
                     }
@@ -277,16 +271,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const icon = document.getElementById('fullscreenIcon');
         if (!container) return;
 
-        if (!document.fullscreenElement) {
-            container.requestFullscreen().then(() => {
-                if (icon) icon.className = 'fa-solid fa-compress';
-            }).catch(() => {});
+        const fsElem = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+        if (!fsElem) {
+            const reqFs = container.requestFullscreen || container.webkitRequestFullscreen || container.msRequestFullscreen;
+            if (reqFs) {
+                reqFs.call(container).then(() => {
+                    if (icon) icon.className = 'fa-solid fa-compress';
+                }).catch(() => {});
+            }
         } else {
-            document.exitFullscreen().then(() => {
-                if (icon) icon.className = 'fa-solid fa-expand';
-            }).catch(() => {});
+            const exitFs = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+            if (exitFs) {
+                exitFs.call(document).then(() => {
+                    if (icon) icon.className = 'fa-solid fa-expand';
+                }).catch(() => {});
+            }
         }
     }
+
+    document.addEventListener('fullscreenchange', () => {
+        const icon = document.getElementById('fullscreenIcon');
+        if (icon) {
+            icon.className = document.fullscreenElement ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
+        }
+    });
 
     function handleMouseMoveControls() {
         const controlsBar = document.getElementById('customVideoControlsBar');
@@ -294,7 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
         controlsBar.classList.remove('controls-hidden');
     }
 
-    // Custom Player Time Tracking
     function startCustomTimeTracker() {
         stopCustomTimeTracker();
         playerTimeInterval = setInterval(() => {
@@ -327,14 +334,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateCustomBarUI(curr, dur) {
         const state = getYTPlayerState();
-        if (state === 1) { // 1 = PLAYING
+        if (state === 1) {
             maxWatchedTime = Math.max(maxWatchedTime, curr);
-            if (curr > 1 && activeCourse && activeLesson) {
+            if (curr > 1 && activeCourse && activeLesson && window.UseasStore) {
                 window.UseasStore.saveLessonTimestamp(activeCourse.id, activeLesson.id, curr);
             }
         }
 
-        // Trigger pending resume seek if requested
         if (pendingResumeTimestamp > 2 && dur > 0) {
             const resumeTime = pendingResumeTimestamp;
             pendingResumeTimestamp = 0;
@@ -360,19 +366,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (playIcon) {
-            if (state === 1) { // PLAYING
-                playIcon.className = 'fa-solid fa-pause';
-            } else {
-                playIcon.className = 'fa-solid fa-play';
-            }
+            playIcon.className = state === 1 ? 'fa-solid fa-pause' : 'fa-solid fa-play';
         }
 
-        // Live Real-Time Course Completion Progress Update
-        if (dur > 0 && activeCourse && activeLesson) {
+        if (dur > 0 && activeCourse && activeLesson && window.UseasStore) {
             const liveRatio = Math.min(1.0, curr / dur);
             const progress = window.UseasStore.getCourseProgress(activeCourse.id);
             
-            // Auto-complete lesson if user watches to end (>= 98%)
             if (liveRatio >= 0.98 && !progress.completedLessons.includes(activeLesson.id)) {
                 const newProgress = window.UseasStore.toggleLessonComplete(activeCourse.id, activeLesson.id, true);
                 updatePlayerProgressUI(newProgress, 1.0);
@@ -389,15 +389,19 @@ document.addEventListener('DOMContentLoaded', () => {
     init();
 
     function init() {
-        renderCourses();
-        setupEventListeners();
         setupAuthHandlers();
+        setupEventListeners();
         updateStudentHeaderUI();
+        renderCourses();
 
-        // Listen for live Firebase & Student Auth sync updates
         window.addEventListener('courses-updated', () => renderCourses());
+        window.addEventListener('firebase-ready', () => renderCourses());
+        window.addEventListener('focus', () => renderCourses());
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) renderCourses();
+        });
         window.addEventListener('storage', (e) => {
-            if (e.key === 'useas_courses_v1') {
+            if (!e.key || e.key === 'useas_courses_v1') {
                 renderCourses();
             }
         });
@@ -407,16 +411,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         window.addEventListener('progress-updated', () => {
             renderCourses();
-            if (activeCourse) {
+            if (activeCourse && window.UseasStore) {
                 const progress = window.UseasStore.getCourseProgress(activeCourse.id);
                 updatePlayerProgressUI(progress);
                 renderLessonsPlaylist();
             }
         });
 
-        // Save active lesson video playback timestamp on tab close/unload
         window.addEventListener('beforeunload', () => {
-            if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function' && activeCourse && activeLesson) {
+            if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function' && activeCourse && activeLesson && window.UseasStore) {
                 try {
                     const curr = ytPlayer.getCurrentTime() || 0;
                     if (curr > 1) {
@@ -487,11 +490,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function onPlayerStateChange(event) {
         if (event && typeof event.data === 'number') {
-            if (event.data === 1) { // PLAYING
+            if (event.data === 1) {
                 isCurrentlyPlaying = true;
                 updatePlayPauseUI(true);
                 handleMouseMoveControls();
-            } else if (event.data === 2 || event.data === 0) { // PAUSED or ENDED
+            } else if (event.data === 2 || event.data === 0) {
                 isCurrentlyPlaying = false;
                 updatePlayPauseUI(false);
                 const controlsBar = document.getElementById('customVideoControlsBar');
@@ -499,7 +502,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Perform pending resume seek when video starts buffering (3) or playing (1)
         if (event && (event.data === 1 || event.data === 3) && pendingResumeTimestamp > 2) {
             const resumeTime = pendingResumeTimestamp;
             pendingResumeTimestamp = 0;
@@ -511,9 +513,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(`▶ Resumed playback from ${formatTime(resumeTime)}${pct > 0 ? ` (${pct}%)` : ''}`, 'info');
         }
 
-        // YT.PlayerState.ENDED === 0
         if (event && event.data === 0) {
-            if (activeCourse && activeLesson) {
+            if (activeCourse && activeLesson && window.UseasStore) {
                 const newProgress = window.UseasStore.toggleLessonComplete(activeCourse.id, activeLesson.id, true);
                 updatePlayerProgressUI(newProgress);
                 renderLessonsPlaylist();
@@ -524,7 +525,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupEventListeners() {
-        // Search Filter
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
                 searchQuery = e.target.value.toLowerCase();
@@ -532,7 +532,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Category Filter Tags
         if (categoryContainer) {
             categoryContainer.addEventListener('click', (e) => {
                 const target = e.target.closest('.tag-btn');
@@ -545,7 +544,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Modal Close
         if (closeModalBtn) {
             closeModalBtn.addEventListener('click', closePlayerModal);
         }
@@ -558,7 +556,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Click to Play/Pause on Video Overlay (Prevents YouTube External Links & Popups)
         if (videoClickOverlay) {
             videoClickOverlay.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -567,7 +564,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Big Center Play Button Handler
         const bigCenterPlayBtn = document.getElementById('bigCenterPlayBtn');
         if (bigCenterPlayBtn) {
             bigCenterPlayBtn.addEventListener('click', (e) => {
@@ -577,28 +573,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Mark as Complete Button Handler
-        const toggleCompleteBtn = document.getElementById('toggleCompleteBtn');
-        if (toggleCompleteBtn) {
-            toggleCompleteBtn.addEventListener('click', () => {
-                if (!activeCourse || !activeLesson) return;
-                const currentProg = window.UseasStore.getCourseProgress(activeCourse.id);
-                const isCurrentlyDone = currentProg.completedLessons.includes(activeLesson.id);
-                const newProgress = window.UseasStore.toggleLessonComplete(activeCourse.id, activeLesson.id, !isCurrentlyDone);
-
-                updatePlayerProgressUI(newProgress);
-                renderLessonsPlaylist();
-                renderCourses();
-
-                if (!isCurrentlyDone) {
-                    showToast('🎉 Task/Lesson marked as completed!', 'success');
-                } else {
-                    showToast('Lesson marked as incomplete.', 'info');
-                }
-            });
-        }
-
-        // Previous / Next Lesson Buttons
         if (prevLessonBtn) {
             prevLessonBtn.addEventListener('click', () => navigateLesson(-1));
         }
@@ -606,39 +580,25 @@ document.addEventListener('DOMContentLoaded', () => {
             nextLessonBtn.addEventListener('click', () => navigateLesson(1));
         }
 
-        // Custom Video Bar Handlers
         const customPlayPauseBtn = document.getElementById('customPlayPauseBtn');
         const customRewind10Btn = document.getElementById('customRewind10Btn');
         const customForward10Btn = document.getElementById('customForward10Btn');
         const customScrubSlider = document.getElementById('customScrubSlider');
 
-        if (customPlayPauseBtn) {
-            customPlayPauseBtn.addEventListener('click', () => togglePlayPause());
-        }
+        if (customPlayPauseBtn) customPlayPauseBtn.addEventListener('click', () => togglePlayPause());
+        if (customRewind10Btn) customRewind10Btn.addEventListener('click', () => rewind10Seconds());
+        if (customForward10Btn) customForward10Btn.addEventListener('click', () => forward10Seconds());
 
-        if (customRewind10Btn) {
-            customRewind10Btn.addEventListener('click', () => rewind10Seconds());
-        }
-
-        if (customForward10Btn) {
-            customForward10Btn.addEventListener('click', () => forward10Seconds());
-        }
-
-        // Mute & Volume Handlers
         const customMuteBtn = document.getElementById('customMuteBtn');
         const customVolumeSlider = document.getElementById('customVolumeSlider');
 
-        if (customMuteBtn) {
-            customMuteBtn.addEventListener('click', () => toggleMute());
-        }
-
+        if (customMuteBtn) customMuteBtn.addEventListener('click', () => toggleMute());
         if (customVolumeSlider) {
             customVolumeSlider.addEventListener('input', (e) => {
                 handleVolumeChange(parseFloat(e.target.value));
             });
         }
 
-        // Speed Menu Handlers
         const speedMenuBtn = document.getElementById('speedMenuBtn');
         const speedSettingsBtn = document.getElementById('speedSettingsBtn');
         const speedMenuDropdown = document.getElementById('speedMenuDropdown');
@@ -665,7 +625,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Picture-in-Picture Handlers
         const pipBtn = document.getElementById('pipBtn');
         const exitPipBtn = document.getElementById('exitPipBtn');
         const pipReturnBtn = document.getElementById('pipReturnBtn');
@@ -674,16 +633,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (exitPipBtn) exitPipBtn.addEventListener('click', () => togglePip());
         if (pipReturnBtn) pipReturnBtn.addEventListener('click', () => togglePip());
 
-        // Fullscreen Toggle Button
         if (fullscreenBtn) {
             fullscreenBtn.addEventListener('click', () => toggleFullscreen());
         }
 
-        // Embed Restricted Complete Button Handler
         const restrictedCompleteBtn = document.getElementById('restrictedCompleteBtn');
         if (restrictedCompleteBtn) {
             restrictedCompleteBtn.addEventListener('click', () => {
-                if (!activeCourse || !activeLesson) return;
+                if (!activeCourse || !activeLesson || !window.UseasStore) return;
                 const newProgress = window.UseasStore.toggleLessonComplete(activeCourse.id, activeLesson.id, true);
                 updatePlayerProgressUI(newProgress);
                 renderLessonsPlaylist();
@@ -693,7 +650,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Auto-Hide Controls Bar on Mouse Move
         if (videoWrapper) {
             videoWrapper.addEventListener('mousemove', () => handleMouseMoveControls());
             videoWrapper.addEventListener('mouseleave', () => {
@@ -762,7 +718,6 @@ document.addEventListener('DOMContentLoaded', () => {
             customScrubSlider.addEventListener('change', commitSeek);
         }
 
-        // Global Keyboard Shortcuts
         document.addEventListener('keydown', (e) => {
             const tag = e.target?.tagName?.toLowerCase();
             if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
@@ -787,6 +742,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.preventDefault();
                     togglePip();
                 } else if (e.key === 'Escape') {
+                    if (document.fullscreenElement) return;
                     if (isPipActive) {
                         togglePip();
                     } else {
@@ -809,7 +765,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 650);
     }
 
-    // Toast Notification helper (Centered Middle Screen Popup)
     function showToast(message, type = 'info') {
         const container = document.getElementById('toastContainer');
         if (!container) return;
@@ -837,12 +792,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3200);
     }
 
+    function getSafeAllCourses() {
+        if (window.UseasStore && typeof window.UseasStore.getCourses === 'function') {
+            const storeCourses = window.UseasStore.getCourses();
+            if (Array.isArray(storeCourses) && storeCourses.length > 0) {
+                return storeCourses;
+            }
+        }
+        try {
+            const raw = localStorage.getItem('useas_courses_v1');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    return parsed.filter(c => c && typeof c === 'object' && c.id);
+                }
+            }
+        } catch (e) {}
+        return [];
+    }
+
     // Render Course Cards
     function renderCourses() {
         if (!coursesGrid) return;
 
-        const allCourses = window.UseasStore.getCourses();
-        const filtered = (allCourses || []).filter(course => {
+        const allCourses = getSafeAllCourses();
+        const filtered = allCourses.filter(course => {
             if (!course || !course.id) return false;
             const matchesCat = activeCategory === 'all' || course.category === activeCategory;
             const titleStr = (course.title || '').toLowerCase();
@@ -886,9 +860,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             path: 'animations/no-item-found.json'
                         });
                     }
-                } catch (err) {
-                    console.error('Lottie load error:', err);
-                }
+                } catch (err) {}
             }
             return;
         }
@@ -898,13 +870,11 @@ document.addEventListener('DOMContentLoaded', () => {
             activeNoItemAnim = null;
         }
 
-        const currentStudent = window.UseasStore.getCurrentStudent();
+        const currentStudent = window.UseasStore ? window.UseasStore.getCurrentStudent() : null;
 
         coursesGrid.innerHTML = filtered.map(course => {
-            const progress = window.UseasStore.getCourseProgress(course.id);
             const totalLessons = course.lessons ? course.lessons.length : 0;
-            const isCompleted = progress.percentage === 100 && totalLessons > 0;
-            const isRegistered = currentStudent ? window.UseasStore.isStudentRegisteredForCourse(course.id, currentStudent) : false;
+            const isRegistered = (currentStudent && window.UseasStore) ? window.UseasStore.isStudentRegisteredForCourse(course.id, currentStudent) : false;
 
             return `
                 <div class="course-card" data-course-id="${course.id}">
@@ -925,8 +895,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             </span>
                         </div>
 
-
-
                         ${isRegistered ? `
                             <button class="btn btn-success btn-course-action" style="margin-top: 1rem; width: 100%;">
                                 <i class="fa-solid fa-circle-check" style="color: #ffffff;"></i> Joined
@@ -941,11 +909,10 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
 
-        // Attach click events to cards
         coursesGrid.querySelectorAll('.course-card').forEach(card => {
             card.addEventListener('click', () => {
                 const courseId = card.getAttribute('data-course-id');
-                const student = window.UseasStore.getCurrentStudent();
+                const student = window.UseasStore ? window.UseasStore.getCurrentStudent() : null;
                 if (!student) {
                     showLockedModal();
                     return;
@@ -960,7 +927,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Listen to registrations updates
     window.addEventListener('registrations-updated', () => renderCourses());
 
     // Course Locked Modal Handlers
@@ -1000,9 +966,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         path: 'animations/locked.json'
                     });
                 }
-            } catch (err) {
-                console.error('Locked Lottie error:', err);
-            }
+            } catch (err) {}
         }
     }
 
@@ -1040,13 +1004,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const regCourseTitleSubtitle = document.getElementById('regCourseTitleSubtitle');
 
     function openCourseRegistrationModal(courseId) {
+        if (!window.UseasStore) return;
         const currentStudent = window.UseasStore.getCurrentStudent();
         if (!currentStudent) {
             showLockedModal();
             return;
         }
 
-        const course = window.UseasStore.getCourseById(courseId);
+        const course = window.UseasStore.getCourseById(courseId) || getSafeAllCourses().find(c => c.id === courseId);
         if (!course) return;
 
         document.getElementById('regCourseIdInput').value = courseId;
@@ -1054,7 +1019,6 @@ document.addEventListener('DOMContentLoaded', () => {
             regCourseTitleSubtitle.textContent = `Registering for: ${course.title}`;
         }
 
-        // Auto-fill available information from Student Profile automatically
         document.getElementById('regFullNameInput').value = currentStudent.fullName || '';
         document.getElementById('regSucCodeInput').value = currentStudent.sucCode || '';
         document.getElementById('regEmailInput').value = currentStudent.email || '';
@@ -1084,6 +1048,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (courseRegisterForm) {
         courseRegisterForm.addEventListener('submit', (e) => {
             e.preventDefault();
+            if (!window.UseasStore) return;
             const currentStudent = window.UseasStore.getCurrentStudent();
             if (!currentStudent) {
                 closeCourseRegistrationModal();
@@ -1092,7 +1057,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const courseId = document.getElementById('regCourseIdInput').value;
-            const course = window.UseasStore.getCourseById(courseId);
+            const course = window.UseasStore.getCourseById(courseId) || getSafeAllCourses().find(c => c.id === courseId);
             const fullName = document.getElementById('regFullNameInput').value.trim();
             const sucCode = document.getElementById('regSucCodeInput').value.trim();
             const collegeName = document.getElementById('regCollegeNameInput').value.trim();
@@ -1121,21 +1086,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Open Course Player Modal
     function openCoursePlayer(courseId, targetLessonId = null) {
-        // Check if student is logged in
+        if (!window.UseasStore) return;
         const currentStudent = window.UseasStore.getCurrentStudent();
         if (!currentStudent) {
             showLockedModal();
             return;
         }
 
-        // Check if student is registered for this course
         const isRegistered = window.UseasStore.isStudentRegisteredForCourse(courseId, currentStudent);
         if (!isRegistered) {
             openCourseRegistrationModal(courseId);
             return;
         }
 
-        const course = window.UseasStore.getCourseById(courseId);
+        const course = window.UseasStore.getCourseById(courseId) || getSafeAllCourses().find(c => c.id === courseId);
         if (!course) return;
 
         activeCourse = course;
@@ -1151,22 +1115,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const foundLesson = course.lessons.find(l => l.id === startLessonId);
         activeLesson = foundLesson || course.lessons[0];
 
-        // Populate Modal Header
         modalCourseTitle.textContent = course.title;
         
-        // Show Modal
         playerModal.classList.add('active');
         document.body.style.overflow = 'hidden';
 
-        // Load Active Lesson
         loadLesson(activeLesson.id);
         renderLessonsPlaylist();
     }
 
     let activeWebcamStream = null;
 
-    // Load Specific Lesson Step (Video, Text Page, or Exam)
     function loadLesson(lessonId) {
+        if (!window.UseasStore) return;
         const lesson = activeCourse.lessons.find(l => l.id === lessonId);
         if (!lesson) return;
 
@@ -1175,11 +1136,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const type = lesson.type || 'video';
         const videoWrap = document.getElementById('videoWrapper');
-        const customBar = document.getElementById('customVideoBar');
+        const videoContainer = document.getElementById('videoContainer');
         const textView = document.getElementById('textArticleView');
         const testView = document.getElementById('testOverviewView');
 
-        // Stop video tracker if switching away
         stopCustomTimeTracker();
 
         if (type === 'video') {
@@ -1191,12 +1151,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (controlsBar) controlsBar.style.display = 'flex';
             if (bigCenterBtn) bigCenterBtn.style.display = 'flex';
 
+            if (videoContainer) videoContainer.style.display = 'flex';
             if (videoWrap) videoWrap.style.display = 'block';
-            if (customBar) customBar.style.display = 'flex';
             if (textView) textView.style.display = 'none';
             if (testView) testView.style.display = 'none';
 
-            // Retrieve saved playback timestamp for resuming video
             const savedTimestamp = window.UseasStore.getLessonTimestamp(activeCourse.id, lesson.id);
             const currentProgress = window.UseasStore.getCourseProgress(activeCourse.id);
             const isLessonDone = currentProgress.completedLessons.includes(lesson.id);
@@ -1205,7 +1164,6 @@ document.addEventListener('DOMContentLoaded', () => {
             pendingResumeTimestamp = (!isLessonDone && savedTimestamp > 2) ? savedTimestamp : 0;
             const startParam = pendingResumeTimestamp > 2 ? `&start=${Math.floor(pendingResumeTimestamp)}` : '';
 
-            // Update YouTube Embed safely
             const videoId = lesson.videoId || window.UseasStore.extractYoutubeId(lesson.videoUrl);
             currentVideoId = videoId;
             const isHttp = (window.location.protocol === 'http:' || window.location.protocol === 'https:') && window.location.origin && window.location.origin !== 'null';
@@ -1229,12 +1187,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             startCustomTimeTracker();
         } else if (type === 'text') {
-            if (videoWrap) videoWrap.style.display = 'none';
-            if (customBar) customBar.style.display = 'none';
+            if (videoContainer) videoContainer.style.display = 'none';
             if (textView) textView.style.display = 'block';
             if (testView) testView.style.display = 'none';
 
-            // Pause YT video if playing
             sendYTCommand('pauseVideo');
 
             const articleTitle = document.getElementById('articleTitle');
@@ -1255,12 +1211,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             }
         } else if (type === 'test') {
-            if (videoWrap) videoWrap.style.display = 'none';
-            if (customBar) customBar.style.display = 'none';
+            if (videoContainer) videoContainer.style.display = 'none';
             if (textView) textView.style.display = 'none';
             if (testView) testView.style.display = 'block';
 
-            // Pause YT video if playing
             sendYTCommand('pauseVideo');
 
             const testOverviewTitle = document.getElementById('testOverviewTitle');
@@ -1271,7 +1225,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (testOverviewTitle) testOverviewTitle.textContent = lesson.title;
             if (testOverviewDesc) testOverviewDesc.textContent = lesson.description || (lesson.examData && lesson.examData.instructions) || 'Complete this online examination to advance in the course.';
 
-            // Check previous exam score
             const examRes = window.UseasStore.getExamResult(activeCourse.id, lesson.id);
             if (examStatusBox) {
                 if (examRes) {
@@ -1298,11 +1251,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Update Lesson Info Header
         modalLessonTitle.textContent = lesson.title;
         modalLessonDesc.textContent = lesson.description || 'Follow the step instructions to advance through the course.';
 
-        // Update Navigation Counters
         const currentIdx = activeCourse.lessons.findIndex(l => l.id === lesson.id);
         modalLessonCounter.textContent = `Step ${currentIdx + 1} of ${activeCourse.lessons.length}`;
 
@@ -1317,17 +1268,10 @@ document.addEventListener('DOMContentLoaded', () => {
         highlightActiveSidebarItem(lesson.id);
     }
 
-    // Pre-Exam Camera & Security Modal Logic
     function openPreExamModal() {
         const modal = document.getElementById('preExamModal');
-        const badge = document.getElementById('webcamStatusBadge');
-        const feed = document.getElementById('preExamWebcamFeed');
-        const fallback = document.getElementById('camFallbackMsg');
-
         if (!modal) return;
         modal.classList.add('active');
-
-        // Request live webcam camera stream
         startWebcamPreview();
     }
 
@@ -1349,8 +1293,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (badge) badge.innerHTML = `<span style="color: var(--accent-green);"><i class="fa-solid fa-circle"></i> Camera & Microphone Active</span>`;
                     if (fallback) fallback.style.display = 'none';
                 })
-                .catch(err => {
-                    console.warn('Webcam permission error:', err);
+                .catch(() => {
                     if (badge) badge.innerHTML = `<span style="color: var(--accent-red);"><i class="fa-solid fa-circle-exclamation"></i> Camera Access Denied</span>`;
                     if (fallback) fallback.style.display = 'block';
                 });
@@ -1395,16 +1338,14 @@ document.addEventListener('DOMContentLoaded', () => {
             stopWebcamPreview();
             document.getElementById('preExamModal').classList.remove('active');
 
-            // Open secure exam runner in separate browser tab
             const examUrl = `exam.html?courseId=${encodeURIComponent(activeCourse.id)}&lessonId=${encodeURIComponent(activeLesson.id)}`;
             window.open(examUrl, '_blank');
             showToast('🚀 Exam launched in secure window!', 'success');
         });
     }
 
-    // Listen for progress-updated event when progress changes in Firebase (e.g. exam submitted in tab)
     window.addEventListener('progress-updated', () => {
-        if (activeCourse && activeLesson) {
+        if (activeCourse && activeLesson && window.UseasStore) {
             const progress = window.UseasStore.getCourseProgress(activeCourse.id);
             updatePlayerProgressUI(progress);
             renderLessonsPlaylist();
@@ -1412,7 +1353,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Update Player Completion UI & Progress Bars
     function updatePlayerProgressUI(progress, liveRatio = 0) {
         if (!activeCourse || !activeLesson) return;
 
@@ -1424,20 +1364,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isFullyComplete = effectivePct >= 100 || progress.percentage === 100;
 
-        // Update Mark as Complete Button
-        const btn = document.getElementById('toggleCompleteBtn');
-        if (btn) {
-            const isDone = progress.completedLessons.includes(activeLesson.id);
-            if (isDone) {
-                btn.classList.add('is-completed');
-                btn.innerHTML = `<i class="fa-solid fa-circle-check" style="color: #10b981;"></i> <span>Completed</span>`;
-            } else {
-                btn.classList.remove('is-completed');
-                btn.innerHTML = `<i class="fa-regular fa-circle-check"></i> <span>Mark as Complete</span>`;
-            }
-        }
-
-        // Update Modal Progress Sub-panel
         const modalProgressPct = document.getElementById('modalProgressPct');
         const modalProgressBarFill = document.getElementById('modalProgressBarFill');
         const sidebarProgressCount = document.getElementById('sidebarProgressCount');
@@ -1465,17 +1391,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Render Sidebar Playlist with Sequential Locks & Typed Badges
     function renderLessonsPlaylist() {
-        if (!lessonsList || !activeCourse) return;
+        if (!lessonsList || !activeCourse || !window.UseasStore) return;
 
         const progress = window.UseasStore.getCourseProgress(activeCourse.id);
 
         lessonsList.innerHTML = activeCourse.lessons.map((lesson, index) => {
             const isDone = progress.completedLessons.includes(lesson.id);
             const isActive = activeLesson && activeLesson.id === lesson.id;
-            
-            // Check Sequential Lock (Step i requires Step i-1 to be completed)
             const isUnlocked = (index === 0) || progress.completedLessons.includes(activeCourse.lessons[index - 1].id);
 
             const type = lesson.type || 'video';
@@ -1505,23 +1428,10 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
 
-        // Playlist Click Handlers
         lessonsList.querySelectorAll('.lesson-item').forEach(item => {
             const lessonId = item.getAttribute('data-lesson-id');
             const index = activeCourse.lessons.findIndex(l => l.id === lessonId);
             const isUnlocked = (index === 0) || progress.completedLessons.includes(activeCourse.lessons[index - 1].id);
-
-            const checkBtn = item.querySelector('.lesson-check');
-            if (checkBtn && isUnlocked) {
-                checkBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const isDone = progress.completedLessons.includes(lessonId);
-                    const newProgress = window.UseasStore.toggleLessonComplete(activeCourse.id, lessonId, !isDone);
-                    updatePlayerProgressUI(newProgress);
-                    renderLessonsPlaylist();
-                    renderCourses();
-                });
-            }
 
             item.addEventListener('click', () => {
                 if (!isUnlocked) {
@@ -1562,6 +1472,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function closePlayerModal() {
+        if (document.fullscreenElement) {
+            try { document.exitFullscreen(); } catch (e) {}
+        }
         if (isPipActive) {
             isPipActive = false;
             const videoContainer = document.getElementById('videoContainer');
@@ -1571,7 +1484,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (pipTitleBar) pipTitleBar.style.display = 'none';
             if (pipPlaceholder) pipPlaceholder.style.display = 'none';
         }
-        if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function' && activeCourse && activeLesson) {
+        if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function' && activeCourse && activeLesson && window.UseasStore) {
             try {
                 const curr = ytPlayer.getCurrentTime() || 0;
                 if (curr > 1) {
@@ -1584,7 +1497,7 @@ document.addEventListener('DOMContentLoaded', () => {
             playerModal.classList.remove('active');
         }
         if (youtubeIframe) {
-            youtubeIframe.src = ''; // Stop video audio
+            youtubeIframe.src = '';
         }
         document.body.style.overflow = 'auto';
         renderCourses();
@@ -1601,7 +1514,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const dropdownSucBadge = document.getElementById('dropdownSucBadge');
         const profileDropdown = document.getElementById('profileDropdown');
 
-        const currentStudent = window.UseasStore.getCurrentStudent();
+        const currentStudent = window.UseasStore ? window.UseasStore.getCurrentStudent() : null;
 
         if (currentStudent) {
             const firstName = currentStudent.fullName ? currentStudent.fullName.trim().split(' ')[0] : 'Student';
@@ -1633,7 +1546,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const tabLoginBtn = document.getElementById('tabLoginBtn');
         const tabSignupBtn = document.getElementById('tabSignupBtn');
-        const tabAbhyasBtn = document.getElementById('tabAbhyasBtn');
         const authModalTitle = document.getElementById('authModalTitle');
         const authErrorBox = document.getElementById('authErrorBox');
 
@@ -1642,7 +1554,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const abhyasFormContainer = document.getElementById('abhyasFormContainer');
         const authSwitchPrompt = document.getElementById('authSwitchPrompt');
 
-        // Abhyas Flow State & Elements
         let abhyasCurrentStudent = null;
         let abhyasCurrentOtp = null;
 
@@ -1653,7 +1564,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const abhyasDetailsCard = document.getElementById('abhyasDetailsCard');
         const displayAbhyasSuc = document.getElementById('displayAbhyasSuc');
         const displayAbhyasName = document.getElementById('displayAbhyasName');
-        const displayAbhyasEmail = document.getElementById('displayAbhyasEmail');
         const displayAbhyasGroup = document.getElementById('displayAbhyasGroup');
         const abhyasBackBtn = document.getElementById('abhyasBackBtn');
         const abhyasConfirmBtn = document.getElementById('abhyasConfirmBtn');
@@ -1662,18 +1572,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const abhyasOtpInput = document.getElementById('abhyasOtpInput');
         const otpEmailTarget = document.getElementById('otpEmailTarget');
         const abhyasResendOtpBtn = document.getElementById('abhyasResendOtpBtn');
-        const abhyasOtpSubmitBtn = document.getElementById('abhyasOtpSubmitBtn');
 
-        // Initialize EmailJS Browser SDK
         if (window.emailjs) {
             try {
                 emailjs.init({ publicKey: "MJPLwD9idjGcD_L--" });
-            } catch (e) {
-                console.warn("EmailJS init note:", e);
-            }
+            } catch (e) {}
         }
 
-        // Toggle Profile Dropdown
         if (profileAvatarBtn && profileDropdown) {
             profileAvatarBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1682,7 +1587,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Close profile dropdown when clicking outside
         document.addEventListener('click', (e) => {
             if (profileDropdown && profileDropdown.classList.contains('active')) {
                 if (userHeaderProfile && !userHeaderProfile.contains(e.target)) {
@@ -1725,7 +1629,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     rebindSwitchLink();
                 }
             } else if (mode === 'abhyas') {
-                // Hide top tab bar when in Abhyas login mode
                 if (authTabsContainer) authTabsContainer.style.display = 'none';
                 if (tabLoginBtn) tabLoginBtn.classList.remove('active');
                 if (tabSignupBtn) tabSignupBtn.classList.remove('active');
@@ -1734,7 +1637,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (signupForm) signupForm.style.display = 'none';
                 if (abhyasFormContainer) abhyasFormContainer.style.display = 'flex';
 
-                // Reset Abhyas steps to Step 1
                 if (abhyasSucForm) abhyasSucForm.style.display = 'flex';
                 if (abhyasDetailsCard) abhyasDetailsCard.style.display = 'none';
                 if (abhyasOtpForm) abhyasOtpForm.style.display = 'none';
@@ -1798,7 +1700,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (logoutBtn) {
             logoutBtn.addEventListener('click', () => {
                 if (profileDropdown) profileDropdown.classList.remove('active');
-                window.UseasStore.logoutStudent();
+                if (window.UseasStore) window.UseasStore.logoutStudent();
                 updateStudentHeaderUI();
                 showToast('Logged out of student account.', 'info');
             });
@@ -1813,10 +1715,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         rebindSwitchLink();
 
-        // ----------------------------------------------------
         // ABHYAS FLOW HANDLERS
-        // ----------------------------------------------------
-
         let abhyasLottieAnim = null;
 
         function playEmailSentAnimation() {
@@ -1836,12 +1735,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         path: 'animations/Email successfully sent.json'
                     });
                 }
-            } catch (e) {
-                console.warn('Lottie animation error:', e);
-            }
+            } catch (e) {}
         }
 
-        // Step 1: Submit 10-Digit SUC Code & Fetch API
         if (abhyasSucForm) {
             abhyasSucForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -1867,8 +1763,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const normSuc = sucCode.toUpperCase();
                         const normEmail = (sData.email || `${sucCode}@abhyas.edu.in`).trim().toLowerCase();
 
-                        // Check if student exists in store
-                        const existingStudent = window.UseasStore.getStudentBySucOrEmail(normSuc, normEmail);
+                        const existingStudent = window.UseasStore ? window.UseasStore.getStudentBySucOrEmail(normSuc, normEmail) : null;
 
                         abhyasCurrentStudent = {
                             sucCode: normSuc,
@@ -1878,7 +1773,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             hasPassword: !!(existingStudent && existingStudent.password)
                         };
 
-                        // Populate details UI card
                         if (displayAbhyasSuc) displayAbhyasSuc.textContent = abhyasCurrentStudent.sucCode;
                         if (displayAbhyasName) displayAbhyasName.textContent = abhyasCurrentStudent.name;
                         if (displayAbhyasGroup) displayAbhyasGroup.textContent = abhyasCurrentStudent.group;
@@ -1892,24 +1786,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (emailInputSubsequent) emailInputSubsequent.value = abhyasCurrentStudent.email;
 
                         if (abhyasCurrentStudent.hasPassword) {
-                            // Subsequent Login Flow: Show 2 method choices (Password or OTP)
                             if (firstTimeBox) firstTimeBox.style.display = 'none';
                             if (subsequentBox) subsequentBox.style.display = 'flex';
                             switchAbhyasSubsequentTab('password');
                         } else {
-                            // First-Time Login Flow: Show OTP Verification & Password Setup warning
                             if (firstTimeBox) firstTimeBox.style.display = 'flex';
                             if (subsequentBox) subsequentBox.style.display = 'none';
                         }
 
-                        // Switch to Step 2
                         abhyasSucForm.style.display = 'none';
                         if (abhyasDetailsCard) abhyasDetailsCard.style.display = 'flex';
                     } else {
                         showAuthError(json.message || `No student records found for SUC Code: ${sucCode}. Please check your code.`);
                     }
                 } catch (err) {
-                    console.error('Abhyas API Error:', err);
                     showAuthError('Unable to connect to Abhyas server. Please check your internet connection.');
                 } finally {
                     if (abhyasSucSubmitBtn) {
@@ -1920,7 +1810,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Subsequent Tab Switching (Password vs OTP)
         const abhyasMethodPassBtn = document.getElementById('abhyasMethodPassBtn');
         const abhyasMethodOtpBtn = document.getElementById('abhyasMethodOtpBtn');
         const abhyasPasswordForm = document.getElementById('abhyasPasswordForm');
@@ -1960,7 +1849,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (abhyasMethodPassBtn) abhyasMethodPassBtn.addEventListener('click', () => switchAbhyasSubsequentTab('password'));
         if (abhyasMethodOtpBtn) abhyasMethodOtpBtn.addEventListener('click', () => switchAbhyasSubsequentTab('otp'));
 
-        // Subsequent Password Login Submission
         if (abhyasPasswordForm) {
             abhyasPasswordForm.addEventListener('submit', (e) => {
                 e.preventDefault();
@@ -1972,9 +1860,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const student = window.UseasStore.getStudentBySucOrEmail(abhyasCurrentStudent.sucCode, abhyasCurrentStudent.email);
+                const student = window.UseasStore ? window.UseasStore.getStudentBySucOrEmail(abhyasCurrentStudent.sucCode, abhyasCurrentStudent.email) : null;
                 if (student && student.password === enteredPass) {
-                    // Password Login Success!
                     window.UseasStore.loginOrRegisterAbhyasStudent({
                         name: abhyasCurrentStudent.name,
                         email: abhyasCurrentStudent.email,
@@ -1993,7 +1880,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Back buttons in Step 2
         const resetToStep1 = () => {
             hideAuthError();
             if (abhyasDetailsCard) abhyasDetailsCard.style.display = 'none';
@@ -2006,7 +1892,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (abhyasSubsequentBackBtn) abhyasSubsequentBackBtn.addEventListener('click', resetToStep1);
         if (abhyasSubsequentBackBtn2) abhyasSubsequentBackBtn2.addEventListener('click', resetToStep1);
 
-        // Step 2: Confirm Student Details & Send OTP
         let abhyasOtpTimer = null;
         let abhyasResendCountdown = 0;
 
@@ -2041,10 +1926,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Update current student record with verified email
             abhyasCurrentStudent.email = targetEmail;
-
-            // Generate 6-digit OTP
             abhyasCurrentOtp = Math.floor(100000 + Math.random() * 900000).toString();
 
             const confirmBtn = useSubsequentEmail ? document.getElementById('abhyasConfirmBtnSubsequent') : abhyasConfirmBtn;
@@ -2076,7 +1958,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const sendPromise = new Promise((resolve) => {
                 let isSent = false;
 
-                // Attempt 1: Direct Fetch to EmailJS REST API
                 fetch('https://api.emailjs.com/api/v1.0/email/send', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2096,20 +1977,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         return res.text().then(text => Promise.reject(new Error(text)));
                     }
                 })
-                .catch(restErr => {
-                    // Attempt 2: EmailJS Browser SDK
+                .catch(() => {
                     if (window.emailjs && !isSent) {
                         try {
                             if (window.emailjs.init) window.emailjs.init({ publicKey: 'MJPLwD9idjGcD_L--' });
                         } catch(e) {}
 
                         window.emailjs.send('useas_otpsender', 'template_5weozdp', templateParams, 'MJPLwD9idjGcD_L--')
-                        .then((res) => {
+                        .then(() => {
                             isSent = true;
                             showToast(`✉️ OTP sent successfully to ${targetEmail}! Check your inbox.`, 'success');
                             resolve(true);
                         })
-                        .catch((sdkErr) => {
+                        .catch(() => {
                             showToast(`✉️ OTP sent to ${targetEmail}! Check your inbox.`, 'info');
                             resolve(false);
                         });
@@ -2131,7 +2011,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (abhyasDetailsCard) abhyasDetailsCard.style.display = 'none';
                 if (abhyasOtpForm) abhyasOtpForm.style.display = 'flex';
 
-                // Play Email Sent Lottie Animation!
                 playEmailSentAnimation();
 
                 if (abhyasOtpInput) abhyasOtpInput.focus();
@@ -2155,7 +2034,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Step 3: Verify OTP
         if (abhyasOtpForm) {
             abhyasOtpForm.addEventListener('submit', (e) => {
                 e.preventDefault();
@@ -2172,9 +2050,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // OTP Verified Successfully!
                 if (abhyasCurrentStudent.hasPassword) {
-                    // Subsequent Login: Complete login directly!
                     const res = window.UseasStore.loginOrRegisterAbhyasStudent(abhyasCurrentStudent);
                     if (res.error) {
                         showAuthError(res.error);
@@ -2186,7 +2062,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         showToast(`🎉 Welcome back, ${abhyasCurrentStudent.name}! Logged in via Abhyas.`, 'success');
                     }
                 } else {
-                    // First-Time Login: Show Step 4 to Set Account Password!
                     if (abhyasOtpForm) abhyasOtpForm.style.display = 'none';
                     const setPassForm = document.getElementById('abhyasSetPasswordForm');
                     if (setPassForm) setPassForm.style.display = 'flex';
@@ -2196,7 +2071,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Step 4: First-Time Set Password Form Submission
         const abhyasSetPasswordForm = document.getElementById('abhyasSetPasswordForm');
         if (abhyasSetPasswordForm) {
             abhyasSetPasswordForm.addEventListener('submit', (e) => {
@@ -2216,7 +2090,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // Register student with password!
                 const res = window.UseasStore.loginOrRegisterAbhyasStudent({
                     name: abhyasCurrentStudent.name,
                     email: abhyasCurrentStudent.email,
@@ -2239,7 +2112,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Sign Up Form Submission
         if (signupForm) {
             signupForm.addEventListener('submit', (e) => {
                 e.preventDefault();
@@ -2256,7 +2128,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // Double password match verification check
                 if (password !== confirmPassword) {
                     showAuthError('Passwords do not match! Please check and re-enter both passwords.');
                     return;
@@ -2274,7 +2145,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Log In Form Submission
         if (loginForm) {
             loginForm.addEventListener('submit', (e) => {
                 e.preventDefault();
@@ -2301,7 +2171,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Header Navigation Pill Light / Active State Toggle
     const navExploreCourses = document.getElementById('navExploreCourses');
     const navTopCourses = document.getElementById('navTopCourses');
 
@@ -2330,7 +2199,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Scroll Observer to dynamically update nav active light as user scrolls
     window.addEventListener('scroll', () => {
         const coursesSec = document.getElementById('coursesGrid');
         if (!coursesSec) return;
