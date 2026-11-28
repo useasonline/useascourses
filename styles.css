@@ -6,7 +6,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap');
 
 :root {
-    /* Color Palette - Matched with www.useas.online */
     --bg-dark: #f8fafc;
     --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
     --bg-surface: rgba(255, 255, 255, 0.92);
@@ -33,7 +32,6 @@
     --text-muted: #64748b;
     --text-dim: #94a3b8;
 
-    /* Spacing & Geometry */
     --radius-sm: 10px;
     --radius-md: 16px;
     --radius-lg: 24px;
@@ -44,7 +42,6 @@
     --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Reset & Base */
 *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
@@ -73,7 +70,7 @@ button, input, select, textarea {
     color: inherit;
 }
 
-/* Ambient Canvas Glow Effects (from www.useas.online) */
+/* Ambient Canvas Glow Effects */
 .ambient-orb-1 {
     position: fixed;
     top: -140px;
@@ -101,18 +98,12 @@ button, input, select, textarea {
 }
 
 @keyframes floatGlow {
-    0% {
-        transform: translate(0, 0) scale(1);
-    }
-    50% {
-        transform: translate(35px, 45px) scale(1.12);
-    }
-    100% {
-        transform: translate(-25px, 25px) scale(0.95);
-    }
+    0% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(35px, 45px) scale(1.12); }
+    100% { transform: translate(-25px, 25px) scale(0.95); }
 }
 
-/* Header & Navbar - World Class Modern Premium Aesthetics */
+/* Header & Navbar */
 .navbar {
     position: sticky;
     top: 0;
@@ -230,7 +221,6 @@ button, input, select, textarea {
     50% { transform: scale(1.4); opacity: 0.6; }
 }
 
-/* Header Navigation Menu */
 .nav-menu {
     display: flex;
     align-items: center;
@@ -475,7 +465,7 @@ button, input, select, textarea {
     font-family: var(--font-heading);
     font-size: 0.95rem;
     font-weight: 700;
-    color: var(--text-dark);
+    color: var(--text-main);
     margin: 0 0 0.15rem 0;
     white-space: nowrap;
     overflow: hidden;
@@ -901,7 +891,6 @@ button, input, select, textarea {
     color: white;
 }
 
-/* Video Frame Wrapper (Cropping YouTube Overlay Clutter for Pristine Look) */
 /* Custom Video Player Container & Wrapper */
 .video-container-wrapper {
     position: relative;
@@ -924,6 +913,25 @@ button, input, select, textarea {
     z-index: 9999 !important;
     border-radius: 14px !important;
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85), 0 0 0 2px #0056d2 !important;
+}
+
+/* Fullscreen Video Player Sizing */
+.video-container-wrapper:fullscreen,
+.video-container-wrapper:-webkit-full-screen {
+    width: 100vw !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background: #000000;
+}
+
+.video-container-wrapper:fullscreen .video-wrapper,
+.video-container-wrapper:-webkit-full-screen .video-wrapper {
+    flex: 1;
+    padding-top: 0 !important;
+    height: calc(100vh - 76px) !important;
 }
 
 /* PiP Header Title Bar */
@@ -951,25 +959,24 @@ button, input, select, textarea {
     padding: 0 4px;
 }
 
-/* Video Frame Area */
+/* Video Frame Area - Exact 16:9 Fit Without Zooming */
 .video-wrapper {
     position: relative;
     width: 100%;
-    padding-top: 56.25%; /* 16:9 Aspect Ratio */
+    padding-top: 56.25%;
     background: #000000;
     overflow: hidden;
 }
 
 .video-wrapper iframe {
     position: absolute;
-    top: 50%;
-    left: 50%;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
     border: none;
     pointer-events: none;
-    transform: translate(-50%, -50%) scale(1.32);
-    transform-origin: center center;
+    transform: none !important;
 }
 
 /* Big Center Play/Pause Overlay Button */
@@ -999,7 +1006,7 @@ button, input, select, textarea {
 }
 
 .big-center-play-btn i {
-    margin-left: 4px; /* Optically center play triangle */
+    margin-left: 4px;
 }
 
 /* Embed Restricted Video Fallback Card */
@@ -1094,7 +1101,7 @@ button, input, select, textarea {
     background-color: rgba(255, 255, 255, 0.25);
 }
 
-/* Custom Coursera Bottom Controls Bar (Permanently Visible Bar) */
+/* Custom Bottom Controls Bar */
 .custom-video-controls-bar {
     position: relative;
     width: 100%;
@@ -1168,7 +1175,6 @@ button, input, select, textarea {
     width: 0%;
 }
 
-/* Controls Row */
 .controls-row {
     display: flex;
     align-items: center;
@@ -1188,7 +1194,6 @@ button, input, select, textarea {
     position: relative;
 }
 
-/* Control Buttons */
 .ctrl-btn {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.12);
@@ -1232,7 +1237,6 @@ button, input, select, textarea {
     transform: scale(1.05);
 }
 
-/* Volume Slider */
 .volume-group {
     display: flex;
     align-items: center;
@@ -1245,7 +1249,6 @@ button, input, select, textarea {
     cursor: pointer;
 }
 
-/* Speed Menu Selector */
 .speed-menu-container {
     position: relative;
 }
@@ -1310,7 +1313,6 @@ button, input, select, textarea {
     justify-content: center;
     gap: 14px;
     color: #1e293b;
-    box-shadow: var(--shadow-sm);
     margin-bottom: 1.5rem;
 }
 
@@ -1329,7 +1331,7 @@ button, input, select, textarea {
 .pip-placeholder-title {
     font-size: 1.3rem;
     font-weight: 800;
-    color: var(--navy);
+    color: var(--text-main);
 }
 
 .pip-placeholder-desc {
@@ -1356,7 +1358,7 @@ button, input, select, textarea {
     background-color: #0284c7;
 }
 
-/* Click Overlay for Code Play/Pause & Link Protection */
+/* Click Overlay for Play/Pause */
 .video-click-overlay {
     position: absolute;
     top: 0;
@@ -1414,31 +1416,6 @@ button, input, select, textarea {
     font-weight: 800;
     color: var(--text-main);
     margin-bottom: 0.3rem;
-}
-
-.completion-toggle-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.65rem 1.25rem;
-    border-radius: 14px;
-    font-weight: 700;
-    font-size: 0.88rem;
-    cursor: pointer;
-    transition: var(--transition);
-    border: 1px solid rgba(99, 102, 241, 0.2);
-    background: rgba(99, 102, 241, 0.08);
-    color: var(--primary-dark);
-}
-
-.completion-toggle-btn.is-completed {
-    background: rgba(16, 185, 129, 0.12);
-    border-color: rgba(16, 185, 129, 0.3);
-    color: #059669;
-}
-
-.completion-toggle-btn.is-completed:hover {
-    background: rgba(16, 185, 129, 0.2);
 }
 
 .nav-lessons-bar {
@@ -1581,7 +1558,6 @@ button, input, select, textarea {
     font-weight: 600;
 }
 
-/* Admin Table */
 .admin-card {
     background: #ffffff;
     border: 1px solid rgba(99, 102, 241, 0.14);
@@ -1647,31 +1623,49 @@ button, input, select, textarea {
 }
 
 .form-group {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 0.35rem;
     margin-bottom: 1.25rem;
 }
 
-.form-group label {
-    display: block;
+.form-group label, .form-label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
     font-size: 0.85rem;
     font-weight: 700;
-    margin-bottom: 0.5rem;
     color: var(--text-main);
 }
 
-.form-control {
+.form-label i {
+    color: var(--primary-dark);
+    font-size: 0.9rem;
+}
+
+.form-control, .form-input {
     width: 100%;
-    padding: 0.75rem 1rem;
-    background: #f8fafc;
-    border: 1px solid rgba(99, 102, 241, 0.18);
-    border-radius: 12px;
+    padding: 0.8rem 1.1rem;
+    font-size: 0.92rem;
+    font-family: inherit;
     color: var(--text-main);
+    background: #f8fafc;
+    border: 1.5px solid rgba(99, 102, 241, 0.2);
+    border-radius: 14px;
     outline: none;
-    transition: var(--transition);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-sizing: border-box;
 }
 
-.form-control:focus {
+.form-input::placeholder, .form-control::placeholder {
+    color: #94a3b8;
+    font-size: 0.88rem;
+}
+
+.form-control:focus, .form-input:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px var(--primary-glow);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
     background: #ffffff;
 }
 
@@ -1765,14 +1759,8 @@ textarea.form-control {
 }
 
 @keyframes popupCenter {
-    0% {
-        opacity: 0;
-        transform: scale(0.7) translateY(20px);
-    }
-    100% {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-    }
+    0% { opacity: 0; transform: scale(0.7) translateY(20px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .toast.toast-hiding {
@@ -1780,14 +1768,8 @@ textarea.form-control {
 }
 
 @keyframes popoutCenter {
-    0% {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-    }
-    100% {
-        opacity: 0;
-        transform: scale(0.85) translateY(-15px);
-    }
+    0% { opacity: 1; transform: scale(1) translateY(0); }
+    100% { opacity: 0; transform: scale(0.85) translateY(-15px); }
 }
 
 /* Empty State */
@@ -1801,98 +1783,6 @@ textarea.form-control {
     font-size: 3rem;
     margin-bottom: 1rem;
     opacity: 0.5;
-}
-
-/* Student Profile Header Badge */
-.user-profile-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0.85rem;
-    background: rgba(99, 102, 241, 0.08);
-    border: 1px solid rgba(99, 102, 241, 0.2);
-    border-radius: var(--radius-full);
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--text-main);
-}
-
-.nav-student-name {
-    font-weight: 800;
-    color: var(--primary-dark);
-}
-
-.suc-pill {
-    background: linear-gradient(135deg, #6366f1, #a855f7);
-    color: #ffffff;
-    font-size: 0.7rem;
-    font-weight: 800;
-    padding: 0.15rem 0.5rem;
-    border-radius: var(--radius-full);
-    text-transform: uppercase;
-}
-
-.btn-logout-icon {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 0.2rem 0.4rem;
-    border-radius: 50%;
-    transition: var(--transition);
-    font-size: 0.9rem;
-}
-
-.btn-logout-icon:hover {
-    color: var(--accent-red);
-    transform: scale(1.1);
-}
-
-/* Form Inputs & Controls Design */
-.form-group {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    gap: 0.35rem;
-}
-
-.form-label {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--text-main);
-}
-
-.form-label i {
-    color: var(--primary-dark);
-    font-size: 0.9rem;
-}
-
-.form-input {
-    width: 100%;
-    padding: 0.8rem 1.1rem;
-    font-size: 0.92rem;
-    font-family: inherit;
-    color: var(--text-main);
-    background: #f8fafc;
-    border: 1.5px solid rgba(99, 102, 241, 0.2);
-    border-radius: 14px;
-    outline: none;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    box-sizing: border-box;
-}
-
-.form-input::placeholder {
-    color: #94a3b8;
-    font-size: 0.88rem;
-}
-
-.form-input:focus {
-    border-color: #6366f1;
-    background: #ffffff;
-    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
 }
 
 /* Student Auth Modal */
@@ -2029,19 +1919,6 @@ textarea.form-control {
 }
 
 /* Abhyas Authentication Option & Modal Styles */
-.abhyas-tab-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-}
-
-.abhyas-tab-logo {
-    height: 18px;
-    width: auto;
-    object-fit: contain;
-}
-
 .auth-divider {
     display: flex;
     align-items: center;
@@ -2227,5 +2104,3 @@ textarea.form-control {
     color: #059669;
     margin-top: 2px;
 }
-
-
