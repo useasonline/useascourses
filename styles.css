@@ -561,7 +561,7 @@ button, input, select, textarea {
 
 .hero-title {
     font-family: var(--font-heading);
-    font-size: 2.8rem;
+    font-size: clamp(1.75rem, 4.5vw, 2.8rem);
     font-weight: 800;
     letter-spacing: -1px;
     line-height: 1.15;
@@ -659,7 +659,7 @@ button, input, select, textarea {
 /* Course Grid */
 .courses-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
     gap: 1.75rem;
 }
 
@@ -829,25 +829,16 @@ button, input, select, textarea {
 
 .player-modal {
     width: 100%;
-    max-width: 1200px;
-    height: 90vh;
-    max-height: 800px;
+    max-width: 1240px;
+    height: 92dvh;
+    max-height: 860px;
     background: #ffffff;
     border: 1px solid rgba(99, 102, 241, 0.2);
     border-radius: 24px;
     display: grid;
-    grid-template-columns: 1fr 360px;
+    grid-template-columns: minmax(0, 1fr) 330px;
     overflow: hidden;
     box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.25);
-}
-
-@media (max-width: 992px) {
-    .player-modal {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto 1fr;
-        height: 95vh;
-        overflow-y: auto;
-    }
 }
 
 .player-main {
@@ -894,11 +885,14 @@ button, input, select, textarea {
 /* Custom Video Player Container & Wrapper */
 .video-container-wrapper {
     position: relative;
-    width: 100%;
+    width: calc(100% - 2rem);
+    max-width: 780px;
+    margin: 1rem auto 0;
+    flex-shrink: 0;
     background: #0f172a;
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-md);
     overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     user-select: none;
     transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
@@ -910,28 +904,56 @@ button, input, select, textarea {
     bottom: 24px !important;
     right: 24px !important;
     width: 420px !important;
+    max-width: 92vw !important;
+    margin: 0 !important;
     z-index: 9999 !important;
     border-radius: 14px !important;
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85), 0 0 0 2px #0056d2 !important;
 }
 
-/* Fullscreen Video Player Sizing */
+/* Fullscreen Video Player Sizing (Native + Fallback Class) */
 .video-container-wrapper:fullscreen,
-.video-container-wrapper:-webkit-full-screen {
+.video-container-wrapper:-webkit-full-screen,
+.video-container-wrapper.is-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
+    max-width: none !important;
+    margin: 0 !important;
     border-radius: 0 !important;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    background: #000000;
+    z-index: 99999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    background: #000000 !important;
 }
 
 .video-container-wrapper:fullscreen .video-wrapper,
-.video-container-wrapper:-webkit-full-screen .video-wrapper {
-    flex: 1;
+.video-container-wrapper:-webkit-full-screen .video-wrapper,
+.video-container-wrapper.is-fullscreen .video-wrapper {
+    flex: 1 1 auto !important;
+    width: 100% !important;
     padding-top: 0 !important;
+    aspect-ratio: auto !important;
     height: calc(100vh - 76px) !important;
+    max-height: calc(100vh - 76px) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #000000 !important;
+}
+
+.video-container-wrapper:fullscreen .video-wrapper iframe,
+.video-container-wrapper:-webkit-full-screen .video-wrapper iframe,
+.video-container-wrapper.is-fullscreen .video-wrapper iframe {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: calc((100vh - 76px) * 16 / 9) !important;
+    max-height: 100% !important;
+    margin: auto !important;
 }
 
 /* PiP Header Title Bar */
@@ -963,20 +985,22 @@ button, input, select, textarea {
 .video-wrapper {
     position: relative;
     width: 100%;
-    padding-top: 56.25%;
+    aspect-ratio: 16 / 9;
+    padding-top: 0;
+    flex-shrink: 0;
     background: #000000;
     overflow: hidden;
 }
 
 .video-wrapper iframe {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    inset: 0;
+    width: 100% !important;
+    height: 100% !important;
     border: none;
     pointer-events: none;
     transform: none !important;
+    display: block;
 }
 
 /* Big Center Play/Pause Overlay Button */
@@ -996,7 +1020,7 @@ button, input, select, textarea {
     font-size: 1.8rem;
     cursor: pointer;
     box-shadow: 0 8px 26px rgba(0, 86, 210, 0.6);
-    z-index: 15;
+    z-index: 16;
     transition: transform 0.2s ease, background-color 0.2s ease;
 }
 
@@ -1121,7 +1145,19 @@ button, input, select, textarea {
     font-size: 0.85rem;
     font-family: monospace;
     font-weight: 600;
-    min-width: 105px;
+    min-width: 96px;
+    white-space: nowrap;
+}
+
+.custom-remaining-display {
+    color: #38bdf8;
+    font-size: 0.76rem;
+    font-family: monospace;
+    font-weight: 700;
+    background: rgba(56, 189, 248, 0.14);
+    border: 1px solid rgba(56, 189, 248, 0.28);
+    padding: 2px 8px;
+    border-radius: 99px;
     white-space: nowrap;
 }
 
@@ -1163,16 +1199,43 @@ button, input, select, textarea {
     transform: scale(1.3);
 }
 
+.custom-scrub-watched {
+    position: absolute;
+    left: 0;
+    top: 7px;
+    height: 6px;
+    background-color: rgba(56, 189, 248, 0.35);
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 1;
+    width: 0%;
+}
+
 .custom-scrub-fill {
     position: absolute;
     left: 0;
-    top: 9px;
+    top: 7px;
     height: 6px;
     background-color: #0056d2;
     border-radius: 3px;
     pointer-events: none;
     z-index: 1;
     width: 0%;
+}
+
+.skip-locked-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 10px;
+    height: 28px;
+    border-radius: 14px;
+    background: rgba(239, 68, 68, 0.16);
+    border: 1px solid rgba(248, 113, 113, 0.38);
+    color: #fca5a5;
+    font-size: 0.72rem;
+    font-weight: 800;
+    white-space: nowrap;
 }
 
 .controls-row {
@@ -1365,7 +1428,7 @@ button, input, select, textarea {
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 10;
+    z-index: 14;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -2103,4 +2166,688 @@ textarea.form-control {
     font-size: 1.2rem;
     color: #059669;
     margin-top: 2px;
+}
+
+/* Admin Section Switcher (All Courses | Student Course Registrations) */
+.admin-view-switcher {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.admin-view-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    padding: 0.95rem 1.25rem;
+    border-radius: 16px;
+    border: 1.5px solid rgba(99, 102, 241, 0.18);
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--text-muted);
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.admin-view-tab:hover {
+    border-color: rgba(99, 102, 241, 0.45);
+    color: var(--primary-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.12);
+}
+
+.admin-view-tab.active {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    border-color: transparent;
+    color: #ffffff;
+    box-shadow: 0 10px 24px rgba(99, 102, 241, 0.32);
+}
+
+.admin-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 7px;
+    border-radius: var(--radius-full);
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--primary-dark);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.admin-view-tab.active .admin-tab-count {
+    background: rgba(255, 255, 255, 0.22);
+    color: #ffffff;
+}
+
+@media (max-width: 640px) {
+    .admin-view-switcher {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+}
+
+.fullscreen-ctrl-btn {
+    background: rgba(56, 189, 248, 0.16);
+    border-color: rgba(56, 189, 248, 0.35);
+    padding: 0 12px;
+}
+
+.fullscreen-ctrl-btn:hover {
+    background: #0284c7;
+    border-color: #38bdf8;
+}
+
+/* Video Proctoring & Attention Gate Overlay */
+.proctor-gate-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.94);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1.5rem;
+    gap: 0.75rem;
+    z-index: 35;
+}
+
+.proctor-gate-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.18);
+    border: 1.5px solid rgba(239, 68, 68, 0.45);
+    color: #f87171;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.45rem;
+}
+
+.proctor-gate-icon.info {
+    background: rgba(99, 102, 241, 0.22);
+    border-color: rgba(129, 140, 248, 0.5);
+    color: #a5b4fc;
+}
+
+.proctor-gate-title {
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.proctor-gate-desc {
+    font-size: 0.86rem;
+    color: #cbd5e1;
+    max-width: 440px;
+    line-height: 1.45;
+}
+
+.proctor-gate-actions {
+    display: flex;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 0.25rem;
+}
+
+/* Live Video Analysis & Proctoring Monitor Panel */
+.video-proctor-panel {
+    display: grid;
+    grid-template-columns: 136px 1fr auto;
+    align-items: center;
+    gap: 1rem;
+    background: #ffffff;
+    border: 1px solid rgba(99, 102, 241, 0.16);
+    border-radius: var(--radius-md);
+    padding: 0.85rem 1rem;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+.proctor-cam-box {
+    position: relative;
+    width: 136px;
+    height: 88px;
+    background: #0f172a;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1.5px solid rgba(99, 102, 241, 0.25);
+}
+
+.proctor-cam-box video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    display: block;
+}
+
+#proctorFaceOverlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: scaleX(-1);
+    pointer-events: none;
+    z-index: 2;
+}
+
+.cam-attention-badge {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    right: 4px;
+    text-align: center;
+    font-size: 0.64rem;
+    font-weight: 800;
+    padding: 2px 5px;
+    border-radius: 6px;
+    color: #ffffff;
+    background: rgba(15, 23, 42, 0.82);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 3;
+}
+
+.cam-attention-badge.ok {
+    background: rgba(16, 185, 129, 0.9);
+}
+
+.cam-attention-badge.warn {
+    background: rgba(239, 68, 68, 0.92);
+}
+
+.proctor-analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+    gap: 0.5rem;
+}
+
+.analysis-stat {
+    background: #f8fafc;
+    border: 1px solid rgba(99, 102, 241, 0.1);
+    border-radius: 10px;
+    padding: 0.45rem 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.analysis-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.analysis-val {
+    font-size: 0.84rem;
+    font-weight: 800;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+.proctor-controls-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    align-items: stretch;
+}
+
+.proctor-mini-btn {
+    font-size: 0.76rem !important;
+    padding: 0.38rem 0.7rem !important;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+.proctor-mini-btn.active-share {
+    background: rgba(16, 185, 129, 0.14);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: #059669;
+}
+
+.bg-shield-pill {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #059669;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: var(--radius-full);
+    padding: 0.22rem 0.55rem;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Responsive breakpoints moved to unified section below */
+
+/* Dark Curtain Mask hiding YouTube titles, channel avatars, share, more videos, and logos */
+.video-paused-mask {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, #131f38 0%, #090e1a 100%);
+    z-index: 12;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding-bottom: 1.5rem;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+.video-mask-caption {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.9rem;
+    border-radius: var(--radius-full);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #cbd5e1;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+.notes-ctrl-btn {
+    background: rgba(16, 185, 129, 0.16);
+    border-color: rgba(16, 185, 129, 0.35);
+    padding: 0 12px;
+}
+
+.notes-ctrl-btn:hover {
+    background: #059669;
+    border-color: #10b981;
+}
+
+/* My Lesson Notes Editor Card */
+.lesson-notes-card {
+    background: #ffffff;
+    border: 1px solid rgba(99, 102, 241, 0.16);
+    border-radius: var(--radius-md);
+    padding: 0.95rem 1.05rem;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.lesson-notes-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.lesson-notes-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 800;
+    font-size: 0.92rem;
+    color: var(--text-main);
+}
+
+.lesson-notes-title-wrap i {
+    color: var(--primary);
+}
+
+.notes-save-status {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.18rem 0.55rem;
+    border-radius: var(--radius-full);
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+}
+
+.notes-save-status.saving {
+    background: rgba(245, 158, 11, 0.14);
+    color: #d97706;
+}
+
+.lesson-notes-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.lesson-notes-textarea {
+    width: 100%;
+    min-height: 82px;
+    padding: 0.75rem 0.9rem;
+    border-radius: 10px;
+    border: 1px solid rgba(99, 102, 241, 0.22);
+    background: #f8fafc;
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.lesson-notes-textarea:focus {
+    background: #ffffff;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.14);
+}
+
+/* Top & Corner Shields covering embedded source titles, channel avatars, and corner logos */
+.yt-top-bar-shield {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 72px;
+    background: linear-gradient(180deg, #090e1a 0%, rgba(9, 14, 26, 0.97) 64%, rgba(9, 14, 26, 0) 100%);
+    z-index: 13;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.yt-top-bar-shield.active {
+    opacity: 1;
+}
+
+.yt-corner-logo-shield {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    min-width: 122px;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: rgba(9, 14, 26, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #e2e8f0;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    z-index: 13;
+    pointer-events: none;
+}
+
+.yt-corner-logo-shield i {
+    color: #60a5fa;
+}
+
+/* Pre-Pause Live Looking/Gaze Warning Banner */
+.proctor-live-alert-banner {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(220, 38, 38, 0.95);
+    border: 1px solid rgba(254, 202, 202, 0.7);
+    color: #ffffff;
+    padding: 0.45rem 1rem;
+    border-radius: var(--radius-full);
+    font-size: 0.8rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 10px 25px rgba(220, 38, 38, 0.45);
+    z-index: 18;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+/* =========================================================
+   Responsive Layout: Laptop, Tablet, and Mobile Devices
+   ========================================================= */
+@media (max-width: 1200px) {
+    .player-modal {
+        grid-template-columns: minmax(0, 1fr) 300px;
+    }
+    .video-container-wrapper {
+        width: calc(100% - 1.5rem);
+        max-width: 740px;
+    }
+    .proctor-analysis-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 992px) {
+    .modal-overlay {
+        padding: 0.65rem;
+        align-items: flex-start;
+    }
+    .player-modal {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+        height: auto;
+        max-height: 96dvh;
+        overflow-y: auto;
+        border-radius: 18px;
+        margin: auto 0;
+    }
+    .player-main {
+        overflow-y: visible;
+    }
+    .player-sidebar {
+        height: auto;
+        border-left: none;
+        border-top: 1px solid rgba(99, 102, 241, 0.14);
+    }
+    .lessons-list {
+        max-height: 320px;
+    }
+    .video-container-wrapper {
+        width: calc(100% - 1.25rem);
+        max-width: 100%;
+        margin: 0.75rem auto 0;
+    }
+    .admin-view-switcher {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .navbar {
+        padding: 0.55rem 1rem;
+    }
+    .nav-container {
+        gap: 0.65rem;
+    }
+    .nav-menu {
+        display: none;
+    }
+    .nav-cta-btn {
+        padding: 0.48rem 0.9rem !important;
+        font-size: 0.78rem !important;
+    }
+    .container {
+        padding: 1.5rem 1rem;
+    }
+    .hero {
+        padding: 1.5rem 0.25rem;
+        margin-bottom: 1.25rem;
+    }
+    .hero-subtitle {
+        font-size: 0.96rem;
+        margin-bottom: 1.25rem;
+    }
+    .filter-bar {
+        padding: 0.75rem;
+        margin-bottom: 1.5rem;
+        border-radius: 16px;
+    }
+    .search-box {
+        min-width: 0;
+        width: 100%;
+    }
+    .player-header {
+        padding: 0.9rem 1rem;
+    }
+    .player-course-title {
+        font-size: 0.98rem;
+    }
+    .player-controls-panel {
+        padding: 0.9rem;
+        gap: 0.9rem;
+    }
+    .video-proctor-panel {
+        grid-template-columns: 1fr;
+        padding: 0.85rem;
+        gap: 0.8rem;
+    }
+    .proctor-cam-box {
+        width: 164px;
+        height: 106px;
+        margin: 0 auto;
+    }
+    .proctor-controls-col {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .nav-lessons-bar {
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        padding: 0.65rem 0.8rem;
+    }
+    .form-modal-content,
+    .auth-card {
+        padding: 1.35rem;
+        border-radius: 20px;
+    }
+}
+
+@media (max-width: 640px) {
+    .modal-overlay {
+        padding: 0.35rem;
+    }
+    .video-container-wrapper {
+        width: calc(100% - 0.75rem);
+        margin-top: 0.5rem;
+        border-radius: 10px;
+    }
+    .custom-video-controls-bar {
+        padding: 8px 10px 10px;
+        gap: 6px;
+    }
+    .controls-row {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .controls-left-group,
+    .controls-right-group {
+        gap: 7px;
+        flex-wrap: wrap;
+    }
+    .ctrl-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 0.84rem;
+    }
+    .ctrl-btn-text {
+        height: 28px;
+        padding: 0 8px;
+        font-size: 0.72rem;
+    }
+    .volume-slider {
+        width: 44px;
+    }
+    .custom-time-display {
+        font-size: 0.75rem;
+        min-width: auto;
+    }
+    .custom-remaining-display {
+        font-size: 0.7rem;
+        padding: 2px 6px;
+    }
+    .skip-locked-badge {
+        height: 26px;
+        padding: 0 8px;
+        font-size: 0.68rem;
+    }
+    .proctor-analysis-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .analysis-val {
+        font-size: 0.78rem;
+        white-space: normal;
+        word-break: break-word;
+    }
+    .yt-top-bar-shield {
+        height: 56px;
+    }
+    .yt-corner-logo-shield {
+        min-width: 92px;
+        height: 28px;
+        font-size: 0.68rem;
+        padding: 0 8px;
+    }
+    .proctor-live-alert-banner {
+        font-size: 0.72rem;
+        padding: 0.35rem 0.75rem;
+        max-width: 92%;
+        white-space: normal;
+        text-align: center;
+    }
+    .lesson-notes-header {
+        align-items: flex-start;
+    }
+    .table-header-row {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    .exam-header {
+        padding: 0.75rem 1rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .exam-card {
+        padding: 1.25rem;
+    }
+    .exam-webcam-widget {
+        width: 140px;
+        height: 100px;
+        bottom: 12px;
+        right: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .brand-subtext {
+        display: none;
+    }
+    .brand-logo {
+        width: 36px;
+        height: 36px;
+        font-size: 1rem;
+    }
+    .brand-text {
+        font-size: 1.25rem;
+    }
+    .lesson-current-title {
+        font-size: 1.08rem;
+    }
 }
