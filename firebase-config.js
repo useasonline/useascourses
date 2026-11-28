@@ -8,32 +8,43 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebas
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
 import { getDatabase, ref, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-// Firebase Configuration Object
-const firebaseConfig = {
-  apiKey: "AIzaSyCMMipIDxE2P9l-rG1OH93UrucmtvRDnek",
-  authDomain: "tff-aim-bot-v108.firebaseapp.com",
-  databaseURL: "https://tff-aim-bot-v108-default-rtdb.firebaseio.com",
-  projectId: "tff-aim-bot-v108",
-  storageBucket: "tff-aim-bot-v108.firebasestorage.app",
-  messagingSenderId: "458400734963",
-  appId: "1:458400734963:web:b0b811f8a34e19a29b2186",
-  measurementId: "G-6MCMFHP8JP"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-
+let app = null;
 let analytics = null;
-try {
-    analytics = getAnalytics(app);
-} catch (e) {
-    console.log("Firebase Analytics initialization skipped or offline:", e);
+let db = null;
+
+async function initFirebase() {
+    try {
+        const res = await fetch('/api/firebase-config');
+        if (!res.ok) return null;
+        const payload = await res.json();
+        if (!payload || !payload.configured || !payload.config || !payload.config.apiKey) {
+            console.info("Firebase not configured — running with LocalStorage persistence.");
+            return null;
+        }
+
+        app = initializeApp(payload.config);
+        try {
+            if (payload.config.measurementId) {
+                analytics = getAnalytics(app);
+            }
+        } catch (e) {
+            console.log("Firebase Analytics initialization skipped or offline:", e);
+        }
+
+        if (payload.config.databaseURL) {
+            db = getDatabase(app);
+        }
+        return db;
+    } catch (err) {
+        console.warn("Firebase config load failed — running with LocalStorage persistence:", err);
+        return null;
+    }
 }
 
-const db = getDatabase(app);
+await initFirebase();
 
-// Global Firebase Manager Window Export
-window.UseasFirebase = {
+// Global Firebase Manager Window Export (only active when Firebase DB is configured)
+window.UseasFirebase = db ? {
     app,
     analytics,
     db,
@@ -270,7 +281,9 @@ window.UseasFirebase = {
             console.warn("Could not attach Firebase registrations listener:", e);
         }
     }
-};
+} : null;
 
 // Dispatch Event so Store & Apps know Firebase is initialized
-window.dispatchEvent(new CustomEvent('firebase-ready'));
+if (window.UseasFirebase) {
+    window.dispatchEvent(new CustomEvent('firebase-ready'));
+}
