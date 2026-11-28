@@ -36,9 +36,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminRegistrationsTableBody = document.getElementById('adminRegistrationsTableBody');
     const adminRegSearchInput = document.getElementById('adminRegSearchInput');
 
-    // Buttons
+    // Buttons & View Switcher Tabs
     const openAddCourseBtn = document.getElementById('openAddCourseBtn');
     const resetDemoBtn = document.getElementById('resetDemoBtn');
+    const tabAllCoursesBtn = document.getElementById('tabAllCoursesBtn');
+    const tabRegistrationsBtn = document.getElementById('tabRegistrationsBtn');
+    const adminCoursesSection = document.getElementById('adminCoursesSection');
+    const adminRegistrationsSection = document.getElementById('adminRegistrationsSection');
+    const tabCoursesCount = document.getElementById('tabCoursesCount');
+    const tabRegistrationsCount = document.getElementById('tabRegistrationsCount');
 
     // Course Modal Elements
     const courseModal = document.getElementById('courseModal');
@@ -178,6 +184,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 regSearchQuery = e.target.value.toLowerCase().trim();
                 renderAdminRegistrations();
             });
+        }
+
+        if (tabAllCoursesBtn) {
+            tabAllCoursesBtn.addEventListener('click', () => switchAdminView('courses'));
+        }
+        if (tabRegistrationsBtn) {
+            tabRegistrationsBtn.addEventListener('click', () => switchAdminView('registrations'));
+        }
+        switchAdminView('courses');
+    }
+
+    function switchAdminView(tabName) {
+        const showCourses = tabName !== 'registrations';
+        if (adminCoursesSection) adminCoursesSection.style.display = showCourses ? 'block' : 'none';
+        if (adminRegistrationsSection) adminRegistrationsSection.style.display = showCourses ? 'none' : 'block';
+
+        if (tabAllCoursesBtn) {
+            tabAllCoursesBtn.classList.toggle('active', showCourses);
+            tabAllCoursesBtn.setAttribute('aria-selected', showCourses ? 'true' : 'false');
+        }
+        if (tabRegistrationsBtn) {
+            tabRegistrationsBtn.classList.toggle('active', !showCourses);
+            tabRegistrationsBtn.setAttribute('aria-selected', !showCourses ? 'true' : 'false');
+        }
+
+        if (!showCourses) {
+            renderAdminRegistrations();
         }
     }
 
@@ -409,6 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (statTotalCourses) statTotalCourses.textContent = totalCourses;
+        if (tabCoursesCount) tabCoursesCount.textContent = totalCourses;
         if (statTotalLessons) statTotalLessons.textContent = totalLessons;
         if (statTotalCategories) statTotalCategories.textContent = categoriesSet.size;
 
@@ -441,11 +475,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </td>
                     <td>
-                        <span class="badge-category" style="position: static;">${course.category || 'General'}</span>
+                        <span class="badge-category" style="position: static; white-space: nowrap;">${course.category || 'General'}</span>
                     </td>
-                    <td><span style="color: var(--text-muted);">${course.level || 'All Levels'}</span></td>
+                    <td><span style="color: var(--text-muted); white-space: nowrap;">${course.level || 'All Levels'}</span></td>
                     <td>
-                        <span class="btn-sm" style="background: rgba(99, 102, 241, 0.1); color: var(--primary-dark); border: 1px solid rgba(99, 102, 241, 0.2);">
+                        <span class="btn-sm" style="background: rgba(99, 102, 241, 0.1); color: var(--primary-dark); border: 1px solid rgba(99, 102, 241, 0.2); white-space: nowrap; display: inline-flex; align-items: center; gap: 0.35rem;">
                             <i class="fa-solid fa-video"></i> ${lessonCount} Lessons
                         </span>
                     </td>
@@ -492,6 +526,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (statTotalRegistrations) {
             statTotalRegistrations.textContent = combinedRows.length;
+        }
+        if (tabRegistrationsCount) {
+            tabRegistrationsCount.textContent = combinedRows.length;
         }
 
         if (!adminRegistrationsTableBody) return;
