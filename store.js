@@ -670,7 +670,7 @@ class StoreManager {
         const key = this.getProgressKey(courseId);
 
         if (!this.progress[key]) {
-            this.progress[key] = { completedLessons: [], lastWatchedLessonId: lessonId, timestamps: {} };
+            this.progress[key] = { completedLessons: [], lastWatchedLessonId: lessonId, timestamps: {}, notes: {} };
         }
         if (!this.progress[key].timestamps) {
             this.progress[key].timestamps = {};
@@ -701,6 +701,38 @@ class StoreManager {
             return courseProgress.timestamps[lessonId] || 0;
         }
         return 0;
+    }
+
+    saveLessonNotes(courseId, lessonId, notesText) {
+        if (!courseId || !lessonId) return;
+        const key = this.getProgressKey(courseId);
+
+        if (!this.progress[key]) {
+            this.progress[key] = { completedLessons: [], lastWatchedLessonId: lessonId, timestamps: {}, notes: {} };
+        }
+        if (!this.progress[key].notes) {
+            this.progress[key].notes = {};
+        }
+
+        this.progress[key].notes[lessonId] = typeof notesText === 'string' ? notesText : '';
+
+        try {
+            localStorage.setItem(STORAGE_KEYS.PROGRESS, JSON.stringify(this.progress));
+        } catch (e) {}
+
+        if (typeof window !== 'undefined' && window.UseasFirebase) {
+            window.UseasFirebase.saveProgressToCloud(key, this.progress[key]);
+        }
+    }
+
+    getLessonNotes(courseId, lessonId) {
+        if (!courseId || !lessonId) return '';
+        const key = this.getProgressKey(courseId);
+        const courseProgress = this.progress[key] || this.progress[courseId];
+        if (courseProgress && courseProgress.notes && typeof courseProgress.notes[lessonId] === 'string') {
+            return courseProgress.notes[lessonId];
+        }
+        return '';
     }
 
     // ==================== STUDENT AUTH METHODS ====================
