@@ -64,7 +64,32 @@ document.addEventListener('DOMContentLoaded', () => {
     let hasPlayerError = false;
     let currentVideoId = '';
 
-    // Window postMessage listener for YouTube Player Iframe
+    // Proctored Watch-Time, Camera Attention, Screen Share & Background Guard State
+    let lessonCameraStream = null;
+    let lessonScreenStream = null;
+    let attentionMonitorInterval = null;
+    let attentionCanvas = null;
+    let attentionCtx = null;
+    let prevFrameBytes = null;
+    let awayStreakSeconds = 0;
+    let faceDetectorInstance = null;
+    let faceLandmarkerInstance = null;
+    let faceLandmarkerLoading = false;
+    let actualWatchedSeconds = 0;
+    let lastWatchTickMs = 0;
+    let skipViolationCount = 0;
+    let lastSkipBlockedAlertMs = 0;
+    let backgroundViolationCount = 0;
+    let notListeningCount = 0;
+    let isLessonVideoCompleted = false;
+    let isRequestingMediaPermission = false;
+    let proctorGateActive = false;
+    let proctorGateMode = '';
+    let maskHideTimeout = null;
+    let topBarShieldTimeout = null;
+    let notesSaveTimeout = null;
+
+    // Window postMessage listener for embedded video iframe
     window.addEventListener('message', (event) => {
         try {
             const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
@@ -77,13 +102,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     latestYtDuration = info.duration;
                 }
                 if (typeof info.playerState === 'number') {
+                    const prevState = latestYtPlayerState;
                     latestYtPlayerState = info.playerState;
                     if (info.playerState === 1) {
+                        if (proctorGateActive) {
+                            sendYTCommand('pauseVideo');
+                            updatePausedMask(false, 'Video Paused');
+                            return;
+                        }
                         isCurrentlyPlaying = true;
+                        lastWatchTickMs = Date.now();
                         updatePlayPauseUI(true);
-                    } else if (info.playerState === 2 || info.playerState === 0) {
+                        updatePausedMask(true);
+                        triggerTopBarShield(4200);
+                        try {
+                            if (ytPlayer && typeof ytPlayer.unloadModule === 'function') {
+                                ytPlayer.unloadModule('captions');
+                                ytPlayer.unloadModule('cc');
+                            }
+                        } catch (e) {}
+                    } else if (info.playerState === 3) {
+                        updatePausedMask(false, 'Loading Lesson Video...');
+                        triggerTopBarShield(4500);
+                    } else if (info.playerState === 2 || info.playerState === -1) {
                         isCurrentlyPlaying = false;
                         updatePlayPauseUI(false);
+                        updatePausedMask(false, 'Video Paused');
+                    } else if (info.playerState === 0 && prevState !== 0) {
+                        isCurrentlyPlaying = false;
+                        updatePlayPauseUI(false);
+                        updatePausedMask(false, 'Lesson Completed');
+                        handleVideoEndedVerification();
                     }
                 }
             }
@@ -135,6 +184,72 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function triggerTopBarShield(durationMs = 4200) {
+        const shield = document.getElementById('ytTopBarShield');
+        if (!shield) return;
+        if (topBarShieldTimeout) {
+            clearTimeout(topBarShieldTimeout);
+            topBarShieldTimeout = null;
+        }
+        if (hasPlayerError) {
+            shield.classList.remove('active');
+            return;
+        }
+        shield.classList.add('active');
+        topBarShieldTimeout = setTimeout(() => {
+            shield.classList.remove('active');
+            topBarShieldTimeout = null;
+        }, durationMs);
+    }
+
+    function updateCornerLogoShield() {
+        const cornerShield = document.getElementById('ytCornerLogoShield');
+        if (!cornerShield) return;
+        cornerShield.style.display = hasPlayerError ? 'none' : 'flex';
+    }
+
+    function updatePausedMask(isPlaying, captionText = '') {
+        const mask = document.getElementById('videoPausedMask');
+        const caption = document.getElementById('videoMaskCaption');
+        updateCornerLogoShield();
+        if (!mask) return;
+
+        if (maskHideTimeout) {
+            clearTimeout(maskHideTimeout);
+            maskHideTimeout = null;
+        }
+
+        if (hasPlayerError) {
+            mask.style.display = 'none';
+            return;
+        }
+
+        if (isPlaying && !proctorGateActive) {
+            if (caption) {
+                caption.innerHTML = '<i class="fa-solid fa-circle-play"></i> <span>Starting Protected Video...</span>';
+            }
+            triggerTopBarShield(4400);
+            // Wait ~3.4s so any embedded player title bar finishes fading before revealing frame
+            maskHideTimeout = setTimeout(() => {
+                if (isCurrentlyPlaying && !proctorGateActive && !hasPlayerError) {
+                    mask.style.opacity = '0';
+                    setTimeout(() => {
+                        if (isCurrentlyPlaying && !proctorGateActive) {
+                            mask.style.display = 'none';
+                        }
+                    }, 240);
+                }
+            }, 3400);
+        } else {
+            mask.style.display = 'flex';
+            mask.style.opacity = '1';
+            if (caption) {
+                const label = captionText || 'Protected Course Video';
+                caption.innerHTML = `<i class="fa-solid fa-shield-halved"></i> <span>${label}</span>`;
+            }
+        }
+    }
+
     function updatePlayPauseUI(isPlaying) {
         const playIcon = document.getElementById('customPlayIcon');
         const bigCenterBtn = document.getElementById('bigCenterPlayBtn');
@@ -154,7 +269,665 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function isLessonCameraLive() {
+        if (!lessonCameraStream) return false;
+        const tracks = lessonCameraStream.getVideoTracks();
+        return tracks.length > 0 && tracks[0].readyState === 'live';
+    }
+
+    function showProctorGate(mode, title, desc, actionLabel) {
+        proctorGateActive = true;
+        proctorGateMode = mode;
+        isCurrentlyPlaying = false;
+        sendYTCommand('pauseVideo');
+        updatePlayPauseUI(false);
+        updatePausedMask(false, 'Video Paused');
+
+        const overlay = document.getElementById('proctorGateOverlay');
+        const iconWrap = document.getElementById('proctorGateIcon');
+        const titleEl = document.getElementById('proctorGateTitle');
+        const descEl = document.getElementById('proctorGateDesc');
+        const actionBtn = document.getElementById('proctorGateActionBtn');
+
+        if (titleEl) titleEl.textContent = title;
+        if (descEl) descEl.textContent = desc;
+        if (iconWrap) {
+            iconWrap.className = mode === 'camera' ? 'proctor-gate-icon info' : 'proctor-gate-icon';
+            iconWrap.innerHTML = mode === 'camera'
+                ? '<i class="fa-solid fa-camera"></i>'
+                : mode === 'background'
+                ? '<i class="fa-solid fa-ban"></i>'
+                : mode === 'incomplete'
+                ? '<i class="fa-solid fa-lock"></i>'
+                : '<i class="fa-solid fa-eye-slash"></i>';
+        }
+        if (actionBtn) {
+            actionBtn.innerHTML = `<i class="fa-solid fa-play"></i> ${actionLabel || 'Resume Video'}`;
+        }
+        if (overlay) overlay.style.display = 'flex';
+    }
+
+    function hideProctorGate() {
+        proctorGateActive = false;
+        proctorGateMode = '';
+        const overlay = document.getElementById('proctorGateOverlay');
+        if (overlay) overlay.style.display = 'none';
+    }
+
+    function updateCamBadgeUI(state, text, faceStatText = '') {
+        const badge = document.getElementById('camAttentionBadge');
+        const btn = document.getElementById('toggleProctorCamBtn');
+        const faceStatEl = document.getElementById('analysisFaceStatus');
+        if (badge) {
+            badge.className = `cam-attention-badge ${state}`;
+            badge.innerHTML = state === 'ok'
+                ? `<i class="fa-solid fa-circle-check"></i> ${text}`
+                : `<i class="fa-solid fa-triangle-exclamation"></i> ${text}`;
+        }
+        if (faceStatEl) {
+            faceStatEl.textContent = faceStatText || text;
+            faceStatEl.style.color = state === 'ok' ? '#059669' : '#dc2626';
+        }
+        if (btn) {
+            btn.innerHTML = isLessonCameraLive()
+                ? '<i class="fa-solid fa-video"></i> <span>Camera Active</span>'
+                : '<i class="fa-solid fa-video"></i> <span>Enable Camera</span>';
+            btn.classList.toggle('active-share', isLessonCameraLive());
+        }
+    }
+
+    async function requestLessonCamera(andPlay = false) {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showToast('⚠️ Camera API is not supported in this browser.', 'warning');
+            return false;
+        }
+        if (isLessonCameraLive()) {
+            if (andPlay) {
+                hideProctorGate();
+                awayStreakSeconds = 0;
+                lastWatchTickMs = Date.now();
+                isCurrentlyPlaying = true;
+                sendYTCommand('playVideo');
+                updatePlayPauseUI(true);
+            }
+            return true;
+        }
+
+        isRequestingMediaPermission = true;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
+                audio: false
+            });
+            lessonCameraStream = stream;
+            const camEl = document.getElementById('lessonProctorCam');
+            if (camEl) {
+                camEl.srcObject = stream;
+                try { await camEl.play(); } catch (e) {}
+            }
+            const track = stream.getVideoTracks()[0];
+            if (track) {
+                track.onended = () => {
+                    updateCamBadgeUI('warn', 'Cam Stopped');
+                    if (playerModal && playerModal.classList.contains('active') && activeLesson && (activeLesson.type || 'video') === 'video') {
+                        showProctorGate(
+                            'camera',
+                            'Camera Disconnected',
+                            'Camera access was turned off. Re-enable camera access to continue watching.',
+                            'Enable Camera & Resume'
+                        );
+                    }
+                };
+            }
+            updateCamBadgeUI('ok', 'Listening ✓');
+            startAttentionMonitor();
+            if (andPlay) {
+                hideProctorGate();
+                awayStreakSeconds = 0;
+                lastWatchTickMs = Date.now();
+                isCurrentlyPlaying = true;
+                sendYTCommand('playVideo');
+                updatePlayPauseUI(true);
+            }
+            return true;
+        } catch (err) {
+            updateCamBadgeUI('warn', 'Cam Denied');
+            showProctorGate(
+                'camera',
+                'Camera Access Required',
+                'Please allow camera permission in your browser to watch this course video.',
+                'Allow Camera & Play'
+            );
+            showToast('📷 Camera access is required to play course videos.', 'warning');
+            return false;
+        } finally {
+            setTimeout(() => { isRequestingMediaPermission = false; }, 400);
+        }
+    }
+
+    async function requestLessonScreenShare() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+            showToast('⚠️ Screen sharing is not supported in this browser.', 'warning');
+            return;
+        }
+        const labelEl = document.getElementById('shareScreenLabel');
+        const btnEl = document.getElementById('shareScreenBtn');
+
+        if (lessonScreenStream) {
+            lessonScreenStream.getTracks().forEach(t => t.stop());
+            lessonScreenStream = null;
+            if (labelEl) labelEl.textContent = 'Share Screen';
+            if (btnEl) btnEl.classList.remove('active-share');
+            showToast('🖥️ Screen share stopped.', 'info');
+            return;
+        }
+
+        isRequestingMediaPermission = true;
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({
+                video: { displaySurface: 'monitor' },
+                audio: false
+            });
+            lessonScreenStream = stream;
+            const track = stream.getVideoTracks()[0];
+            const settings = track && track.getSettings ? track.getSettings() : {};
+            if (labelEl) labelEl.textContent = 'Screen Shared ✓';
+            if (btnEl) btnEl.classList.add('active-share');
+
+            if (settings.displaySurface && settings.displaySurface !== 'monitor') {
+                showToast('🖥️ Screen share active (tip: share Entire Screen for full proctoring).', 'info');
+            } else {
+                showToast('🖥️ Screen sharing active!', 'success');
+            }
+
+            if (track) {
+                track.onended = () => {
+                    lessonScreenStream = null;
+                    if (labelEl) labelEl.textContent = 'Share Screen';
+                    if (btnEl) btnEl.classList.remove('active-share');
+                    if (playerModal && playerModal.classList.contains('active') && isCurrentlyPlaying) {
+                        sendYTCommand('pauseVideo');
+                        isCurrentlyPlaying = false;
+                        updatePlayPauseUI(false);
+                        showToast('⚠️ Screen share ended. Video paused.', 'warning');
+                    }
+                };
+            }
+        } catch (err) {
+            showToast('🖥️ Screen share cancelled or blocked by browser.', 'info');
+        } finally {
+            setTimeout(() => { isRequestingMediaPermission = false; }, 500);
+        }
+    }
+
+    function playAttentionAlertTone() {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const now = ctx.currentTime;
+            [680, 520].forEach((freq, idx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, now + idx * 0.16);
+                gain.gain.setValueAtTime(0.08, now + idx * 0.16);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.16 + 0.14);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now + idx * 0.16);
+                osc.stop(now + idx * 0.16 + 0.15);
+            });
+            setTimeout(() => { try { ctx.close(); } catch (e) {} }, 600);
+        } catch (e) {}
+    }
+
+    function updateLiveAlertBanner(show, message = '') {
+        const banner = document.getElementById('proctorLiveAlertBanner');
+        const textEl = document.getElementById('proctorLiveAlertText');
+        if (!banner) return;
+        if (show && !proctorGateActive) {
+            if (textEl && message) textEl.textContent = message;
+            banner.style.display = 'flex';
+        } else {
+            banner.style.display = 'none';
+        }
+    }
+
+    function drawProctorFaceBox(boxNorm, statusKind = 'ok') {
+        const overlayCanvas = document.getElementById('proctorFaceOverlay');
+        if (!overlayCanvas) return;
+        const ctx = overlayCanvas.getContext('2d');
+        if (!ctx) return;
+        const W = overlayCanvas.width;
+        const H = overlayCanvas.height;
+        ctx.clearRect(0, 0, W, H);
+
+        if (!boxNorm) return;
+
+        const color = statusKind === 'ok' ? '#10b981' : statusKind === 'warn' ? '#f59e0b' : '#ef4444';
+        const x = Math.max(4, Math.min(W - 12, boxNorm.x * W));
+        const y = Math.max(4, Math.min(H - 12, boxNorm.y * H));
+        const w = Math.max(18, Math.min(W - x - 4, boxNorm.w * W));
+        const h = Math.max(18, Math.min(H - y - 4, boxNorm.h * H));
+        const cLen = Math.min(10, w * 0.25, h * 0.25);
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Top-left
+        ctx.moveTo(x, y + cLen); ctx.lineTo(x, y); ctx.lineTo(x + cLen, y);
+        // Top-right
+        ctx.moveTo(x + w - cLen, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + cLen);
+        // Bottom-left
+        ctx.moveTo(x, y + h - cLen); ctx.lineTo(x, y + h); ctx.lineTo(x + cLen, y + h);
+        // Bottom-right
+        ctx.moveTo(x + w - cLen, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - cLen);
+        ctx.stroke();
+
+        // Subtle center reticle point
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y + h * 0.42, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    async function initMediaPipeFaceLandmarker() {
+        if (faceLandmarkerInstance || faceLandmarkerLoading) return;
+        faceLandmarkerLoading = true;
+        try {
+            const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm');
+            if (!vision || !vision.FilesetResolver || !vision.FaceLandmarker) return;
+            const filesetResolver = await vision.FilesetResolver.forVisionTasks(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+            );
+            faceLandmarkerInstance = await vision.FaceLandmarker.createFromOptions(filesetResolver, {
+                baseOptions: {
+                    modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+                    delegate: 'GPU'
+                },
+                outputFaceBlendshapes: true,
+                runningMode: 'VIDEO',
+                numFaces: 1
+            });
+        } catch (e) {
+            // Fallback seamlessly to built-in geometric computer-vision gaze analyzer
+        } finally {
+            faceLandmarkerLoading = false;
+        }
+    }
+
+    function stopAttentionMonitor() {
+        if (attentionMonitorInterval) {
+            clearInterval(attentionMonitorInterval);
+            attentionMonitorInterval = null;
+        }
+        prevFrameBytes = null;
+        awayStreakSeconds = 0;
+        updateLiveAlertBanner(false);
+        drawProctorFaceBox(null);
+    }
+
+    function stopLessonProctoringStreams() {
+        stopAttentionMonitor();
+        if (lessonCameraStream) {
+            lessonCameraStream.getTracks().forEach(t => t.stop());
+            lessonCameraStream = null;
+        }
+        if (lessonScreenStream) {
+            lessonScreenStream.getTracks().forEach(t => t.stop());
+            lessonScreenStream = null;
+        }
+        const camEl = document.getElementById('lessonProctorCam');
+        if (camEl) camEl.srcObject = null;
+        const labelEl = document.getElementById('shareScreenLabel');
+        const btnEl = document.getElementById('shareScreenBtn');
+        if (labelEl) labelEl.textContent = 'Share Screen';
+        if (btnEl) btnEl.classList.remove('active-share');
+        updateCamBadgeUI('warn', 'Cam Off', 'Cam Off');
+        hideProctorGate();
+    }
+
+    function handleNotListeningViolation(reasonText) {
+        notListeningCount += 1;
+        awayStreakSeconds = 0;
+        updateLiveAlertBanner(false);
+        playAttentionAlertTone();
+
+        const curr = getYTCurrentTime();
+        const repeatTarget = Math.max(0, curr - 10);
+        maxWatchedTime = Math.min(maxWatchedTime, repeatTarget);
+        actualWatchedSeconds = Math.max(0, actualWatchedSeconds - 10);
+        latestYtCurrentTime = repeatTarget;
+        sendYTCommand('seekTo', [repeatTarget, true]);
+        triggerTopBarShield(4200);
+        updateVideoAnalysisUI(repeatTarget, getYTDuration());
+
+        updateCamBadgeUI('warn', 'Looking Away!', 'Paused (Away)');
+        showProctorGate(
+            'not_listening',
+            'Attention Alert: Face Not Looking at Screen',
+            `${reasonText} Video has been paused and rewound 10 seconds. Face the camera and look at the screen to continue.`,
+            'I Am Looking — Resume'
+        );
+        showToast('👀 Alert: You were not looking at the screen! Video paused.', 'warning');
+    }
+
+    function handleBackgroundSwitchViolation(reasonText) {
+        if (!playerModal || !playerModal.classList.contains('active')) return;
+        if (!activeLesson || (activeLesson.type || 'video') !== 'video' || hasPlayerError) return;
+        if (proctorGateActive && proctorGateMode === 'background') return;
+
+        backgroundViolationCount += 1;
+        updateLiveAlertBanner(false);
+        playAttentionAlertTone();
+
+        const curr = getYTCurrentTime();
+        const repeatTarget = Math.max(0, curr - 10);
+        maxWatchedTime = Math.min(maxWatchedTime, repeatTarget);
+        latestYtCurrentTime = repeatTarget;
+        sendYTCommand('seekTo', [repeatTarget, true]);
+        triggerTopBarShield(4200);
+        updateVideoAnalysisUI(repeatTarget, getYTDuration());
+
+        showProctorGate(
+            'background',
+            'Background App / Website Blocked',
+            `${reasonText} Opening other websites or switching apps is blocked. Rewound 10s — stay on this window to continue.`,
+            'Return & Resume Video'
+        );
+        showToast('🚫 Another website / app switch blocked! Video paused.', 'danger');
+    }
+
+    function startAttentionMonitor() {
+        stopAttentionMonitor();
+        if (!attentionCanvas) {
+            attentionCanvas = document.createElement('canvas');
+            attentionCanvas.width = 96;
+            attentionCanvas.height = 72;
+            attentionCtx = attentionCanvas.getContext('2d', { willReadFrequently: true });
+        }
+        if ('FaceDetector' in window && !faceDetectorInstance) {
+            try { faceDetectorInstance = new window.FaceDetector({ fastMode: true, maxDetectedFaces: 1 }); } catch (e) {}
+        }
+        initMediaPipeFaceLandmarker();
+
+        attentionMonitorInterval = setInterval(async () => {
+            if (!playerModal || !playerModal.classList.contains('active')) return;
+            if (!activeLesson || (activeLesson.type || 'video') !== 'video') return;
+            if (hasPlayerError) return;
+
+            if (!isLessonCameraLive()) {
+                drawProctorFaceBox(null);
+                updateLiveAlertBanner(false);
+                updateCamBadgeUI('warn', 'Cam Off', 'Cam Off');
+                if (!proctorGateActive) {
+                    showProctorGate(
+                        'camera',
+                        'Camera Required to Watch',
+                        'Enable your camera to verify you are facing and looking at the lesson.',
+                        'Enable Camera & Play'
+                    );
+                }
+                return;
+            }
+
+            const camEl = document.getElementById('lessonProctorCam');
+            if (!camEl || camEl.readyState < 2 || !attentionCtx) return;
+
+            const state = getYTPlayerState();
+            const isVideoActive = (state === 1 || isCurrentlyPlaying) && !proctorGateActive;
+            const isNotLookingGate = proctorGateActive && proctorGateMode === 'not_listening';
+            if (!isVideoActive && !isNotLookingGate) return;
+
+            try {
+                const W = 96;
+                const H = 72;
+                attentionCtx.drawImage(camEl, 0, 0, W, H);
+                const frame = attentionCtx.getImageData(0, 0, W, H).data;
+                const pixelCount = W * H;
+                let sum = 0;
+                let sumSq = 0;
+                let diffSum = 0;
+                let skinCount = 0;
+                let skinSumX = 0;
+                let skinSumY = 0;
+                let minSX = W, maxSX = 0, minSY = H, maxSY = 0;
+                const gray = new Uint8Array(pixelCount);
+
+                for (let y = 0, p = 0; y < H; y++) {
+                    for (let x = 0; x < W; x++, p++) {
+                        const i = p * 4;
+                        const r = frame[i];
+                        const g = frame[i + 1];
+                        const b = frame[i + 2];
+                        const lum = r * 0.299 + g * 0.587 + b * 0.114;
+                        gray[p] = lum;
+                        sum += lum;
+                        sumSq += lum * lum;
+                        if (prevFrameBytes) {
+                            diffSum += Math.abs(lum - prevFrameBytes[p]);
+                        }
+
+                        if (x >= 12 && x <= W - 12 && y >= 4 && y <= H - 4) {
+                            const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+                            const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+                            if (lum > 35 && cb >= 72 && cb <= 132 && cr >= 130 && cr <= 178) {
+                                skinCount++;
+                                skinSumX += x;
+                                skinSumY += y;
+                                if (x < minSX) minSX = x;
+                                if (x > maxSX) maxSX = x;
+                                if (y < minSY) minSY = y;
+                                if (y > maxSY) maxSY = y;
+                            }
+                        }
+                    }
+                }
+
+                const mean = sum / pixelCount;
+                const variance = (sumSq / pixelCount) - (mean * mean);
+                const avgDiff = prevFrameBytes ? (diffSum / pixelCount) : 5;
+                prevFrameBytes = gray;
+
+                const lensBlocked = mean < 12 || variance < 7;
+
+                let statusKind = 'ok';
+                let badgeText = 'Looking ✓';
+                let statText = 'Looking ✓';
+                let awayReason = '';
+                let trackedBox = null;
+
+                if (lensBlocked) {
+                    statusKind = 'danger';
+                    badgeText = 'Cam Covered';
+                    statText = 'Cam Covered';
+                    awayReason = 'Your camera appears covered or too dark.';
+                } else if (faceLandmarkerInstance) {
+                    try {
+                        const result = faceLandmarkerInstance.detectForVideo(camEl, performance.now());
+                        const landmarks = result && result.faceLandmarks && result.faceLandmarks[0];
+                        if (!landmarks || landmarks.length < 400) {
+                            statusKind = 'danger';
+                            badgeText = 'No Face Seen';
+                            statText = 'No Face';
+                            awayReason = 'No face was detected in front of the camera.';
+                        } else {
+                            let minX = 1, maxX = 0, minY = 1, maxY = 0;
+                            for (let k = 0; k < landmarks.length; k++) {
+                                const pt = landmarks[k];
+                                if (pt.x < minX) minX = pt.x;
+                                if (pt.x > maxX) maxX = pt.x;
+                                if (pt.y < minY) minY = pt.y;
+                                if (pt.y > maxY) maxY = pt.y;
+                            }
+                            trackedBox = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+
+                            const nose = landmarks[1];
+                            const leftCheek = landmarks[234];
+                            const rightCheek = landmarks[454];
+                            const forehead = landmarks[10];
+                            const chin = landmarks[152];
+                            const leftEyeOuter = landmarks[33];
+                            const rightEyeOuter = landmarks[263];
+
+                            const faceWidth = Math.max(0.06, Math.abs(rightCheek.x - leftCheek.x));
+                            const faceCenterX = (leftCheek.x + rightCheek.x) / 2;
+                            const yawOffset = Math.abs(nose.x - faceCenterX) / faceWidth;
+
+                            const faceHeight = Math.max(0.08, Math.abs(chin.y - forehead.y));
+                            const eyeMidY = (leftEyeOuter.y + rightEyeOuter.y) / 2;
+                            const pitchRatio = (nose.y - eyeMidY) / faceHeight;
+
+                            let blinkClosed = false;
+                            const blend = result.faceBlendshapes && result.faceBlendshapes[0] && result.faceBlendshapes[0].categories;
+                            if (blend) {
+                                const bL = blend.find(c => c.categoryName === 'eyeBlinkLeft')?.score || 0;
+                                const bR = blend.find(c => c.categoryName === 'eyeBlinkRight')?.score || 0;
+                                if (bL > 0.72 && bR > 0.72) blinkClosed = true;
+                            }
+
+                            const offFrame = faceCenterX < 0.16 || faceCenterX > 0.84 || eyeMidY < 0.10 || eyeMidY > 0.85;
+                            if (offFrame || yawOffset > 0.23) {
+                                statusKind = 'warn';
+                                badgeText = 'Looking Away';
+                                statText = 'Turned Away';
+                                awayReason = 'Your face turned away from the lesson screen.';
+                            } else if (pitchRatio > 0.43 || pitchRatio < 0.06) {
+                                statusKind = 'warn';
+                                badgeText = 'Look At Screen';
+                                statText = 'Looking Down/Up';
+                                awayReason = 'You appear to be looking down or away from the screen.';
+                            } else if (blinkClosed) {
+                                statusKind = 'warn';
+                                badgeText = 'Eyes Closed';
+                                statText = 'Eyes Closed';
+                                awayReason = 'Your eyes appear closed instead of watching the lesson.';
+                            } else {
+                                statusKind = 'ok';
+                                badgeText = 'Looking ✓';
+                                statText = 'Looking ✓';
+                            }
+                        }
+                    } catch (e) {
+                        faceLandmarkerInstance = null;
+                    }
+                }
+
+                // Built-in instant computer-vision face & gaze orientation fallback
+                if (!faceLandmarkerInstance && !lensBlocked) {
+                    let nativeBox = null;
+                    if (faceDetectorInstance) {
+                        try {
+                            const faces = await faceDetectorInstance.detect(camEl);
+                            if (faces && faces.length > 0 && faces[0].boundingBox) {
+                                const b = faces[0].boundingBox;
+                                const vw = camEl.videoWidth || 320;
+                                const vh = camEl.videoHeight || 240;
+                                nativeBox = { x: b.x / vw, y: b.y / vh, w: b.width / vw, h: b.height / vh };
+                            }
+                        } catch (e) {}
+                    }
+
+                    const hasSkinCluster = skinCount >= 95 && maxSX > minSX && maxSY > minSY;
+                    if (nativeBox) {
+                        trackedBox = nativeBox;
+                        const cxNorm = nativeBox.x + nativeBox.w / 2;
+                        const cyNorm = nativeBox.y + nativeBox.h / 2;
+                        if (cxNorm < 0.20 || cxNorm > 0.80 || cyNorm < 0.15 || cyNorm > 0.85) {
+                            statusKind = 'warn';
+                            badgeText = 'Looking Away';
+                            statText = 'Off Center';
+                            awayReason = 'Keep your face centered and facing the screen.';
+                        }
+                    } else if (!hasSkinCluster) {
+                        statusKind = 'danger';
+                        badgeText = 'No Face Seen';
+                        statText = 'No Face';
+                        awayReason = 'No face detected in front of the camera.';
+                    } else {
+                        const cx = skinSumX / skinCount;
+                        const cy = skinSumY / skinCount;
+                        const cxNorm = cx / W;
+                        const cyNorm = cy / H;
+                        trackedBox = {
+                            x: minSX / W,
+                            y: minSY / H,
+                            w: (maxSX - minSX) / W,
+                            h: (maxSY - minSY) / H
+                        };
+
+                        // Check bilateral symmetry around centroid to detect head turned left/right
+                        let leftCount = 0;
+                        let rightCount = 0;
+                        for (let y = minSY; y <= maxSY; y++) {
+                            for (let x = minSX; x <= maxSX; x++) {
+                                const idx = (y * W + x) * 4;
+                                const r = frame[idx], g = frame[idx + 1], b = frame[idx + 2];
+                                const lum = r * 0.299 + g * 0.587 + b * 0.114;
+                                const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+                                const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+                                if (lum > 35 && cb >= 72 && cb <= 132 && cr >= 130 && cr <= 178) {
+                                    if (x < cx) leftCount++;
+                                    else rightCount++;
+                                }
+                            }
+                        }
+                        const symRatio = Math.min(leftCount, rightCount) / Math.max(1, Math.max(leftCount, rightCount));
+                        const offCenter = cxNorm < 0.22 || cxNorm > 0.78 || cyNorm < 0.16 || cyNorm > 0.82;
+
+                        if (offCenter || symRatio < 0.42) {
+                            statusKind = 'warn';
+                            badgeText = 'Looking Away';
+                            statText = 'Turned Away';
+                            awayReason = 'Your face turned away from the lesson screen.';
+                        } else if (avgDiff < 0.25 && variance < 120) {
+                            statusKind = 'warn';
+                            badgeText = 'Check Focus';
+                            statText = 'Static Frame';
+                            awayReason = 'Live viewer movement not detected.';
+                        }
+                    }
+                }
+
+                drawProctorFaceBox(trackedBox, statusKind);
+
+                if (statusKind === 'ok') {
+                    awayStreakSeconds = 0;
+                    updateLiveAlertBanner(false);
+                    updateCamBadgeUI('ok', badgeText, statText);
+                } else {
+                    updateCamBadgeUI('warn', badgeText, statText);
+                    if (isVideoActive) {
+                        awayStreakSeconds += (lensBlocked ? 1.0 : 0.5);
+                        const secsLeft = Math.max(1, Math.ceil(3.0 - awayStreakSeconds));
+                        if (awayStreakSeconds >= 1.0 && awayStreakSeconds < 3.0) {
+                            updateLiveAlertBanner(true, `Alert: ${badgeText} — Pausing video in ${secsLeft}s`);
+                        }
+                        if (awayStreakSeconds >= 3.0) {
+                            handleNotListeningViolation(awayReason || 'Not facing or looking at the screen.');
+                        }
+                    }
+                }
+            } catch (e) {}
+        }, 500);
+    }
+
     function togglePlayPause() {
+        if (proctorGateActive) {
+            const actionBtn = document.getElementById('proctorGateActionBtn');
+            if (actionBtn) actionBtn.click();
+            return;
+        }
+        if (activeLesson && (activeLesson.type || 'video') === 'video' && !isLessonCameraLive()) {
+            showProctorGate(
+                'camera',
+                'Camera Access Required',
+                'Allow camera access so we can verify you are watching and listening before playing.',
+                'Enable Camera & Play'
+            );
+            return;
+        }
         const state = getYTPlayerState();
         const playing = (state === 1) || isCurrentlyPlaying;
         if (playing) {
@@ -162,11 +935,14 @@ document.addEventListener('DOMContentLoaded', () => {
             sendYTCommand('pauseVideo');
             showPlayPauseAnim('pause');
             updatePlayPauseUI(false);
+            updatePausedMask(false, 'Video Paused');
         } else {
             isCurrentlyPlaying = true;
+            lastWatchTickMs = Date.now();
             sendYTCommand('playVideo');
             showPlayPauseAnim('play');
             updatePlayPauseUI(true);
+            updatePausedMask(true);
         }
     }
 
@@ -174,22 +950,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const curr = getYTCurrentTime();
         const newTime = Math.max(0, curr - 10);
         latestYtCurrentTime = newTime;
+        triggerTopBarShield(4200);
         sendYTCommand('seekTo', [newTime, true]);
         showToast('⏪ Rewound 10 seconds', 'info');
-    }
-
-    function forward10Seconds() {
-        const curr = getYTCurrentTime();
-        const dur = getYTDuration();
-        const targetSec = curr + 10;
-        if (targetSec > maxWatchedTime + 2 && dur > 0) {
-            showToast('⚠️ Fast-forwarding disabled! Please watch in sequence.', 'info');
-            return;
-        }
-        const newTime = Math.min(dur > 0 ? dur : 9999, targetSec);
-        latestYtCurrentTime = newTime;
-        sendYTCommand('seekTo', [newTime, true]);
-        showToast('⏩ Forwarded 10 seconds', 'info');
     }
 
     function toggleMute() {
@@ -266,34 +1029,80 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateFullscreenBtnUI(isFs) {
+        const icon = document.getElementById('fullscreenIcon');
+        const label = document.getElementById('fullscreenLabel');
+        const btn = document.getElementById('fullscreenBtn');
+        if (icon) icon.className = isFs ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
+        if (label) label.textContent = isFs ? 'Exit' : 'Fullscreen';
+        if (btn) btn.title = isFs ? 'Exit Fullscreen (Esc)' : 'Toggle Fullscreen (F)';
+    }
+
     function toggleFullscreen() {
         const container = document.getElementById('videoContainer') || document.getElementById('videoWrapper');
-        const icon = document.getElementById('fullscreenIcon');
         if (!container) return;
 
+        // Exit PiP first if active so fullscreen fills viewport cleanly
+        if (isPipActive) {
+            togglePip();
+        }
+
         const fsElem = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
-        if (!fsElem) {
+        const isCssFs = container.classList.contains('is-fullscreen');
+
+        if (!fsElem && !isCssFs) {
             const reqFs = container.requestFullscreen || container.webkitRequestFullscreen || container.msRequestFullscreen;
             if (reqFs) {
-                reqFs.call(container).then(() => {
-                    if (icon) icon.className = 'fa-solid fa-compress';
-                }).catch(() => {});
+                try {
+                    const result = reqFs.call(container);
+                    if (result && typeof result.then === 'function') {
+                        result.then(() => {
+                            updateFullscreenBtnUI(true);
+                        }).catch(() => {
+                            container.classList.add('is-fullscreen');
+                            updateFullscreenBtnUI(true);
+                        });
+                    } else {
+                        updateFullscreenBtnUI(true);
+                    }
+                } catch (e) {
+                    container.classList.add('is-fullscreen');
+                    updateFullscreenBtnUI(true);
+                }
+            } else {
+                container.classList.add('is-fullscreen');
+                updateFullscreenBtnUI(true);
             }
         } else {
-            const exitFs = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
-            if (exitFs) {
-                exitFs.call(document).then(() => {
-                    if (icon) icon.className = 'fa-solid fa-expand';
-                }).catch(() => {});
+            if (isCssFs) {
+                container.classList.remove('is-fullscreen');
+                updateFullscreenBtnUI(false);
+            }
+            if (fsElem) {
+                const exitFs = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+                if (exitFs) {
+                    try {
+                        const result = exitFs.call(document);
+                        if (result && typeof result.then === 'function') {
+                            result.then(() => updateFullscreenBtnUI(false)).catch(() => updateFullscreenBtnUI(false));
+                        } else {
+                            updateFullscreenBtnUI(false);
+                        }
+                    } catch (e) {
+                        updateFullscreenBtnUI(false);
+                    }
+                }
             }
         }
     }
 
-    document.addEventListener('fullscreenchange', () => {
-        const icon = document.getElementById('fullscreenIcon');
-        if (icon) {
-            icon.className = document.fullscreenElement ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
-        }
+    ['fullscreenchange', 'webkitfullscreenchange', 'msfullscreenchange'].forEach(evt => {
+        document.addEventListener(evt, () => {
+            const container = document.getElementById('videoContainer');
+            const fsElem = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+            const isCssFs = container ? container.classList.contains('is-fullscreen') : false;
+            updateFullscreenBtnUI(Boolean(fsElem || isCssFs));
+        });
     });
 
     function handleMouseMoveControls() {
@@ -332,53 +1141,174 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${mins}:${formattedSecs}`;
     }
 
+    function formatTimeWithSeconds(seconds) {
+        const totalSecs = Math.floor(Math.max(0, isNaN(seconds) ? 0 : seconds));
+        return `${formatTime(totalSecs)} (${totalSecs}s)`;
+    }
+
+    function updateVideoAnalysisUI(curr, dur) {
+        const totalEl = document.getElementById('analysisTotalTime');
+        const watchedEl = document.getElementById('analysisWatchedTime');
+        const remainingEl = document.getElementById('analysisRemainingTime');
+        const awayEl = document.getElementById('analysisAwayCount');
+        const skipEl = document.getElementById('analysisSkipCount');
+        const bgEl = document.getElementById('analysisBgCount');
+
+        const safeDur = dur > 0 ? dur : 0;
+        const effectiveWatched = (isLessonVideoCompleted && safeDur > 0 && actualWatchedSeconds < safeDur * 0.9)
+            ? safeDur
+            : actualWatchedSeconds;
+        const cappedWatched = safeDur > 0 ? Math.min(safeDur, effectiveWatched) : effectiveWatched;
+        const pct = safeDur > 0 ? Math.min(100, Math.round((cappedWatched / safeDur) * 100)) : 0;
+        const remainingTotal = safeDur > 0 ? Math.max(0, safeDur - cappedWatched) : 0;
+
+        if (totalEl) totalEl.textContent = formatTimeWithSeconds(safeDur);
+        if (watchedEl) watchedEl.textContent = `${formatTime(cappedWatched)} · ${Math.floor(cappedWatched)}s (${pct}%)`;
+        if (remainingEl) {
+            remainingEl.textContent = isLessonVideoCompleted ? '0:00 (0s ✓)' : formatTimeWithSeconds(remainingTotal);
+            remainingEl.style.color = isLessonVideoCompleted ? '#059669' : '';
+        }
+        if (awayEl) {
+            awayEl.textContent = `${notListeningCount}`;
+            awayEl.style.color = notListeningCount > 0 ? '#dc2626' : '#059669';
+        }
+        if (skipEl) {
+            skipEl.textContent = `${skipViolationCount}`;
+            skipEl.style.color = skipViolationCount > 0 ? '#dc2626' : '#059669';
+        }
+        if (bgEl) {
+            bgEl.textContent = `${backgroundViolationCount}`;
+            bgEl.style.color = backgroundViolationCount > 0 ? '#dc2626' : '#059669';
+        }
+    }
+
+    function blockSkipAttempt(dur, customMsg = '') {
+        const safeDur = dur > 0 ? dur : getYTDuration();
+        const allowedMax = (isLessonVideoCompleted && safeDur > 0) ? safeDur : Math.max(0, maxWatchedTime);
+        const now = Date.now();
+
+        if (now - lastSkipBlockedAlertMs > 850) {
+            skipViolationCount += 1;
+            lastSkipBlockedAlertMs = now;
+            showToast(customMsg || '🚫 Video skipping is blocked! Watch the full video without skipping forward.', 'warning');
+        }
+
+        latestYtCurrentTime = allowedMax;
+        triggerTopBarShield(4200);
+        sendYTCommand('seekTo', [allowedMax, true]);
+
+        const scrubSlider = document.getElementById('customScrubSlider');
+        const scrubFill = document.getElementById('customScrubFill');
+        const scrubWatched = document.getElementById('customScrubWatched');
+        const timeDisplay = document.getElementById('customTimeDisplay');
+        const remainingDisplay = document.getElementById('customRemainingDisplay');
+
+        if (safeDur > 0) {
+            const safePct = Math.min(100, (allowedMax / safeDur) * 100);
+            const remSecs = Math.max(0, safeDur - allowedMax);
+            if (scrubSlider) scrubSlider.value = safePct;
+            if (scrubFill) scrubFill.style.width = `${safePct}%`;
+            if (scrubWatched) scrubWatched.style.width = `${safePct}%`;
+            if (timeDisplay) timeDisplay.textContent = `${formatTime(allowedMax)} / ${formatTime(safeDur)}`;
+            if (remainingDisplay) remainingDisplay.textContent = `${formatTime(remSecs)} (${Math.floor(remSecs)}s left)`;
+        }
+        updateVideoAnalysisUI(allowedMax, safeDur);
+    }
+
     function updateCustomBarUI(curr, dur) {
         const state = getYTPlayerState();
-        if (state === 1) {
-            maxWatchedTime = Math.max(maxWatchedTime, curr);
-            if (curr > 1 && activeCourse && activeLesson && window.UseasStore) {
-                window.UseasStore.saveLessonTimestamp(activeCourse.id, activeLesson.id, curr);
+        const now = Date.now();
+
+        if (state === 1 && !proctorGateActive && !hasPlayerError) {
+            // Enforce normal 1x playback speed so speed-skipping cannot bypass watch duration
+            try {
+                if (ytPlayer && typeof ytPlayer.getPlaybackRate === 'function' && ytPlayer.getPlaybackRate() !== 1) {
+                    sendYTCommand('setPlaybackRate', [1]);
+                }
+            } catch (e) {}
+
+            if (!isLessonVideoCompleted && dur > 0 && curr > maxWatchedTime + 1.5) {
+                blockSkipAttempt(dur);
+                return;
             }
+
+            const dt = lastWatchTickMs > 0 ? Math.min(1.2, Math.max(0, (now - lastWatchTickMs) / 1000)) : 0.3;
+            if (lastWatchTickMs > 0) {
+                actualWatchedSeconds += dt;
+            }
+            lastWatchTickMs = now;
+
+            if (!isLessonVideoCompleted && curr > maxWatchedTime) {
+                maxWatchedTime = Math.min(curr, maxWatchedTime + Math.max(0.45, dt * 1.4));
+            }
+            if (curr > 1 && activeCourse && activeLesson && window.UseasStore) {
+                window.UseasStore.saveLessonTimestamp(activeCourse.id, activeLesson.id, Math.min(curr, maxWatchedTime));
+            }
+        } else {
+            lastWatchTickMs = now;
         }
 
         if (pendingResumeTimestamp > 2 && dur > 0) {
             const resumeTime = pendingResumeTimestamp;
             pendingResumeTimestamp = 0;
+            maxWatchedTime = Math.max(maxWatchedTime, resumeTime);
             latestYtCurrentTime = resumeTime;
+            triggerTopBarShield(4200);
             sendYTCommand('seekTo', [resumeTime, true]);
             const pct = Math.round((resumeTime / dur) * 100);
             showToast(`▶ Resumed playback from ${formatTime(resumeTime)} (${pct}%)`, 'info');
         }
 
         const timeDisplay = document.getElementById('customTimeDisplay');
+        const remainingDisplay = document.getElementById('customRemainingDisplay');
         const scrubSlider = document.getElementById('customScrubSlider');
         const scrubFill = document.getElementById('customScrubFill');
+        const scrubWatched = document.getElementById('customScrubWatched');
+        const skipLockedBadge = document.getElementById('skipLockedBadge');
         const playIcon = document.getElementById('customPlayIcon');
 
         if (timeDisplay) {
             timeDisplay.textContent = `${formatTime(curr)} / ${formatTime(dur)}`;
         }
+        if (remainingDisplay) {
+            const remSecs = dur > 0 ? Math.max(0, dur - curr) : 0;
+            remainingDisplay.textContent = dur > 0
+                ? `${formatTime(remSecs)} (${Math.floor(remSecs)}s left)`
+                : '0:00 (0s left)';
+        }
 
         if (dur > 0 && scrubSlider && scrubFill && !isScrubbing) {
-            const pct = (curr / dur) * 100;
+            const pct = Math.min(100, (curr / dur) * 100);
             scrubSlider.value = pct;
             scrubFill.style.width = `${pct}%`;
+            if (scrubWatched) {
+                const watchedPct = isLessonVideoCompleted ? 100 : Math.min(100, (maxWatchedTime / dur) * 100);
+                scrubWatched.style.width = `${watchedPct}%`;
+            }
+        }
+
+        if (skipLockedBadge) {
+            skipLockedBadge.style.display = isLessonVideoCompleted ? 'none' : 'inline-flex';
         }
 
         if (playIcon) {
             playIcon.className = state === 1 ? 'fa-solid fa-pause' : 'fa-solid fa-play';
         }
 
+        updateVideoAnalysisUI(curr, dur);
+
         if (dur > 0 && activeCourse && activeLesson && window.UseasStore) {
-            const liveRatio = Math.min(1.0, curr / dur);
+            const liveRatio = Math.min(1.0, actualWatchedSeconds / dur);
             const progress = window.UseasStore.getCourseProgress(activeCourse.id);
-            
-            if (liveRatio >= 0.98 && !progress.completedLessons.includes(activeLesson.id)) {
+
+            if (curr >= dur - 1 && actualWatchedSeconds >= dur * 0.90 && !isLessonVideoCompleted && !progress.completedLessons.includes(activeLesson.id)) {
+                isLessonVideoCompleted = true;
                 const newProgress = window.UseasStore.toggleLessonComplete(activeCourse.id, activeLesson.id, true);
                 updatePlayerProgressUI(newProgress, 1.0);
                 renderLessonsPlaylist();
                 renderCourses();
-                showToast('🎉 Course video 100% completed!', 'success');
+                updateNextBtnLockState();
+                showToast('🎉 Full video watched & verified! Next lesson unlocked.', 'success');
             } else {
                 updatePlayerProgressUI(progress, liveRatio);
             }
@@ -448,6 +1378,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else {
                     ytPlayer = new YT.Player('youtubeIframe', {
+                        host: 'https://www.youtube-nocookie.com',
+                        width: '100%',
+                        height: '100%',
                         videoId: videoId || undefined,
                         playerVars: {
                             'autoplay': 1,
@@ -456,10 +1389,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             'modestbranding': 1,
                             'disablekb': 1,
                             'iv_load_policy': 3,
+                            'cc_load_policy': 0,
+                            'playsinline': 1,
                             'fs': 0,
                             'enablejsapi': 1
                         },
                         events: {
+                            'onReady': (ev) => {
+                                try {
+                                    ev.target.unloadModule('captions');
+                                    ev.target.unloadModule('cc');
+                                } catch (e) {}
+                            },
                             'onStateChange': onPlayerStateChange,
                             'onError': onPlayerError
                         }
@@ -467,13 +1408,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } catch (e) {
-            console.log('YouTube API init notice:', e);
+            console.log('Video player init notice:', e);
         }
     }
 
     function onPlayerError(event) {
-        console.warn('YouTube Player notice/error code:', event ? event.data : 'unknown');
+        console.warn('Video player notice/error code:', event ? event.data : 'unknown');
         hasPlayerError = true;
+        hideProctorGate();
+        updateLiveAlertBanner(false);
+        updatePausedMask(false);
+        updateCornerLogoShield();
         const fallbackCard = document.getElementById('restrictedFallbackCard');
         const bigCenterBtn = document.getElementById('bigCenterPlayBtn');
         const controlsBar = document.getElementById('customVideoControlsBar');
@@ -488,15 +1433,65 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function handleVideoEndedVerification() {
+        if (!activeCourse || !activeLesson || !window.UseasStore) return;
+        const dur = getYTDuration();
+        const requiredWatch = dur > 0 ? dur * 0.90 : 0;
+
+        if (isLessonVideoCompleted || dur <= 0 || actualWatchedSeconds >= requiredWatch) {
+            isLessonVideoCompleted = true;
+            const newProgress = window.UseasStore.toggleLessonComplete(activeCourse.id, activeLesson.id, true);
+            updatePlayerProgressUI(newProgress);
+            renderLessonsPlaylist();
+            renderCourses();
+            updateNextBtnLockState();
+            updateVideoAnalysisUI(dur, dur);
+            showToast('🎉 Full video watched & verified! Next lesson unlocked.', 'success');
+        } else {
+            const rewindTo = Math.max(0, Math.min(maxWatchedTime, actualWatchedSeconds));
+            maxWatchedTime = rewindTo;
+            latestYtCurrentTime = rewindTo;
+            sendYTCommand('seekTo', [rewindTo, true]);
+            sendYTCommand('pauseVideo');
+            updateVideoAnalysisUI(rewindTo, dur);
+            showProctorGate(
+                'incomplete',
+                'Full Video Watch Required',
+                `Video length is ${formatTime(dur)}, but you watched only ${formatTime(actualWatchedSeconds)}. Next video stays locked until you watch the full video without skipping.`,
+                'Continue Watching'
+            );
+            showToast('🔒 Incomplete watch time! Next video remains locked.', 'warning');
+        }
+    }
+
     function onPlayerStateChange(event) {
         if (event && typeof event.data === 'number') {
+            latestYtPlayerState = event.data;
             if (event.data === 1) {
+                if (proctorGateActive || (activeLesson && (activeLesson.type || 'video') === 'video' && !isLessonCameraLive())) {
+                    sendYTCommand('pauseVideo');
+                    updatePausedMask(false, 'Video Paused');
+                    return;
+                }
                 isCurrentlyPlaying = true;
+                lastWatchTickMs = Date.now();
                 updatePlayPauseUI(true);
+                updatePausedMask(true);
+                triggerTopBarShield(4200);
                 handleMouseMoveControls();
-            } else if (event.data === 2 || event.data === 0) {
+                try {
+                    if (ytPlayer && typeof ytPlayer.unloadModule === 'function') {
+                        ytPlayer.unloadModule('captions');
+                        ytPlayer.unloadModule('cc');
+                    }
+                } catch (e) {}
+            } else if (event.data === 3) {
+                updatePausedMask(false, 'Loading Lesson Video...');
+                triggerTopBarShield(4500);
+            } else if (event.data === 2 || event.data === 0 || event.data === -1) {
                 isCurrentlyPlaying = false;
                 updatePlayPauseUI(false);
+                updatePausedMask(false, event.data === 0 ? 'Lesson Completed' : 'Video Paused');
                 const controlsBar = document.getElementById('customVideoControlsBar');
                 if (controlsBar) controlsBar.classList.remove('controls-hidden');
             }
@@ -514,13 +1509,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (event && event.data === 0) {
-            if (activeCourse && activeLesson && window.UseasStore) {
-                const newProgress = window.UseasStore.toggleLessonComplete(activeCourse.id, activeLesson.id, true);
-                updatePlayerProgressUI(newProgress);
-                renderLessonsPlaylist();
-                renderCourses();
-                showToast('🎉 Lesson video completed! Progress updated.', 'success');
-            }
+            handleVideoEndedVerification();
         }
     }
 
@@ -562,6 +1551,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 togglePlayPause();
             });
+            videoClickOverlay.addEventListener('dblclick', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleFullscreen();
+            });
         }
 
         const bigCenterPlayBtn = document.getElementById('bigCenterPlayBtn');
@@ -582,12 +1576,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const customPlayPauseBtn = document.getElementById('customPlayPauseBtn');
         const customRewind10Btn = document.getElementById('customRewind10Btn');
-        const customForward10Btn = document.getElementById('customForward10Btn');
         const customScrubSlider = document.getElementById('customScrubSlider');
 
         if (customPlayPauseBtn) customPlayPauseBtn.addEventListener('click', () => togglePlayPause());
         if (customRewind10Btn) customRewind10Btn.addEventListener('click', () => rewind10Seconds());
-        if (customForward10Btn) customForward10Btn.addEventListener('click', () => forward10Seconds());
+
+        const toggleProctorCamBtn = document.getElementById('toggleProctorCamBtn');
+        const shareScreenBtn = document.getElementById('shareScreenBtn');
+        const proctorGateActionBtn = document.getElementById('proctorGateActionBtn');
+        const proctorGateShareBtn = document.getElementById('proctorGateShareBtn');
+
+        if (toggleProctorCamBtn) {
+            toggleProctorCamBtn.addEventListener('click', () => requestLessonCamera(true));
+        }
+        if (shareScreenBtn) {
+            shareScreenBtn.addEventListener('click', () => requestLessonScreenShare());
+        }
+        if (proctorGateShareBtn) {
+            proctorGateShareBtn.addEventListener('click', () => requestLessonScreenShare());
+        }
+        if (proctorGateActionBtn) {
+            proctorGateActionBtn.addEventListener('click', () => {
+                if (!isLessonCameraLive()) {
+                    requestLessonCamera(true);
+                } else {
+                    awayStreakSeconds = 0;
+                    hideProctorGate();
+                    lastWatchTickMs = Date.now();
+                    isCurrentlyPlaying = true;
+                    sendYTCommand('playVideo');
+                    updatePlayPauseUI(true);
+                }
+            });
+        }
 
         const customMuteBtn = document.getElementById('customMuteBtn');
         const customVolumeSlider = document.getElementById('customVolumeSlider');
@@ -599,39 +1620,87 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        const speedMenuBtn = document.getElementById('speedMenuBtn');
-        const speedSettingsBtn = document.getElementById('speedSettingsBtn');
-        const speedMenuDropdown = document.getElementById('speedMenuDropdown');
+        const toggleNotesBtn = document.getElementById('toggleNotesBtn');
+        const lessonNotesInput = document.getElementById('lessonNotesInput');
+        const saveLessonNotesBtn = document.getElementById('saveLessonNotesBtn');
+        const insertNoteTimestampBtn = document.getElementById('insertNoteTimestampBtn');
+        const downloadLessonNotesBtn = document.getElementById('downloadLessonNotesBtn');
+        const notesSaveStatus = document.getElementById('notesSaveStatus');
 
-        if (speedMenuBtn) {
-            speedMenuBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                toggleSpeedMenu();
+        const persistCurrentLessonNotes = (showToastMsg = false) => {
+            if (!activeCourse || !activeLesson || !window.UseasStore || !lessonNotesInput) return;
+            window.UseasStore.saveLessonNotes(activeCourse.id, activeLesson.id, lessonNotesInput.value);
+            if (notesSaveStatus) {
+                notesSaveStatus.textContent = 'Saved';
+                notesSaveStatus.classList.remove('saving');
+            }
+            if (showToastMsg) showToast('📝 Lesson notes saved!', 'success');
+        };
+
+        if (lessonNotesInput) {
+            lessonNotesInput.addEventListener('input', () => {
+                if (notesSaveStatus) {
+                    notesSaveStatus.textContent = 'Saving...';
+                    notesSaveStatus.classList.add('saving');
+                }
+                if (notesSaveTimeout) clearTimeout(notesSaveTimeout);
+                notesSaveTimeout = setTimeout(() => persistCurrentLessonNotes(false), 400);
             });
         }
-        if (speedSettingsBtn) {
-            speedSettingsBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                toggleSpeedMenu();
-            });
+
+        if (saveLessonNotesBtn) {
+            saveLessonNotesBtn.addEventListener('click', () => persistCurrentLessonNotes(true));
         }
-        if (speedMenuDropdown) {
-            speedMenuDropdown.querySelectorAll('.speed-option').forEach(opt => {
-                opt.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const spd = parseFloat(opt.getAttribute('data-speed'));
-                    setPlaybackSpeed(spd);
-                });
+
+        if (insertNoteTimestampBtn && lessonNotesInput) {
+            insertNoteTimestampBtn.addEventListener('click', () => {
+                const stamp = `[${formatTime(getYTCurrentTime())}] `;
+                const start = lessonNotesInput.selectionStart || lessonNotesInput.value.length;
+                const val = lessonNotesInput.value;
+                const prefix = (start > 0 && val[start - 1] !== '\n') ? '\n' : '';
+                lessonNotesInput.value = val.slice(0, start) + prefix + stamp + val.slice(start);
+                lessonNotesInput.focus();
+                persistCurrentLessonNotes(false);
             });
         }
 
-        const pipBtn = document.getElementById('pipBtn');
-        const exitPipBtn = document.getElementById('exitPipBtn');
-        const pipReturnBtn = document.getElementById('pipReturnBtn');
+        if (downloadLessonNotesBtn && lessonNotesInput) {
+            downloadLessonNotesBtn.addEventListener('click', () => {
+                const text = lessonNotesInput.value.trim();
+                if (!text) {
+                    showToast('📝 Write some notes first before downloading.', 'info');
+                    return;
+                }
+                const title = (activeLesson && activeLesson.title) ? activeLesson.title.replace(/[^a-z0-9]+/gi, '_') : 'lesson_notes';
+                const header = `${activeCourse ? activeCourse.title : 'Course'} — ${activeLesson ? activeLesson.title : 'Lesson'}\n${'='.repeat(40)}\n\n`;
+                const blob = new Blob([header + text], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${title}_notes.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('⬇️ Notes downloaded!', 'success');
+            });
+        }
 
-        if (pipBtn) pipBtn.addEventListener('click', () => togglePip());
-        if (exitPipBtn) exitPipBtn.addEventListener('click', () => togglePip());
-        if (pipReturnBtn) pipReturnBtn.addEventListener('click', () => togglePip());
+        if (toggleNotesBtn) {
+            toggleNotesBtn.addEventListener('click', () => {
+                const container = document.getElementById('videoContainer');
+                if (document.fullscreenElement || (container && container.classList.contains('is-fullscreen'))) {
+                    toggleFullscreen();
+                }
+                const notesCard = document.getElementById('lessonNotesCard');
+                if (notesCard) {
+                    notesCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                if (lessonNotesInput) {
+                    setTimeout(() => lessonNotesInput.focus(), 200);
+                }
+            });
+        }
 
         if (fullscreenBtn) {
             fullscreenBtn.addEventListener('click', () => toggleFullscreen());
@@ -664,16 +1733,21 @@ document.addEventListener('DOMContentLoaded', () => {
             customScrubSlider.addEventListener('mousedown', () => { isScrubbing = true; });
             customScrubSlider.addEventListener('touchstart', () => { isScrubbing = true; });
 
+            customScrubSlider.addEventListener('keydown', (e) => {
+                if (['ArrowRight', 'ArrowUp', 'PageUp', 'End'].includes(e.key) && !isLessonVideoCompleted) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    blockSkipAttempt(getYTDuration());
+                }
+            });
+
             customScrubSlider.addEventListener('input', (e) => {
                 const pct = parseFloat(e.target.value);
                 const dur = getYTDuration();
                 if (dur > 0) {
                     const targetSec = (pct / 100) * dur;
-                    if (targetSec > maxWatchedTime + 2) {
-                        const safePct = (maxWatchedTime / dur) * 100;
-                        e.target.value = safePct;
-                        const fill = document.getElementById('customScrubFill');
-                        if (fill) fill.style.width = `${safePct}%`;
+                    if (!isLessonVideoCompleted && targetSec > maxWatchedTime + 0.5) {
+                        blockSkipAttempt(dur);
                         return;
                     }
 
@@ -695,19 +1769,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const pct = parseFloat(customScrubSlider.value);
                     const targetSec = (pct / 100) * dur;
 
-                    if (targetSec > maxWatchedTime + 2) {
-                        const safeTime = Math.max(0, maxWatchedTime);
-                        latestYtCurrentTime = safeTime;
-                        sendYTCommand('seekTo', [safeTime, true]);
-
-                        const safePct = (dur > 0) ? (safeTime / dur) * 100 : 0;
-                        customScrubSlider.value = safePct;
-                        const fill = document.getElementById('customScrubFill');
-                        if (fill) fill.style.width = `${safePct}%`;
-
-                        showToast('⚠️ Fast-forwarding disabled! Please watch in sequence.', 'info');
+                    if (!isLessonVideoCompleted && targetSec > maxWatchedTime + 0.5) {
+                        blockSkipAttempt(dur);
                     } else {
                         latestYtCurrentTime = targetSec;
+                        triggerTopBarShield(4200);
                         sendYTCommand('seekTo', [targetSec, true]);
                     }
                 }
@@ -718,36 +1784,80 @@ document.addEventListener('DOMContentLoaded', () => {
             customScrubSlider.addEventListener('change', commitSeek);
         }
 
+        // Background App / External Website Opening Block + Anti-Inspect while watching course videos
+        document.addEventListener('click', (e) => {
+            if (!playerModal || !playerModal.classList.contains('active')) return;
+            if (!activeLesson || (activeLesson.type || 'video') !== 'video' || hasPlayerError) return;
+            const anchor = e.target && e.target.closest ? e.target.closest('a') : null;
+            if (!anchor) return;
+            const href = (anchor.getAttribute('href') || '').trim();
+            if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleBackgroundSwitchViolation('Opening another website while watching a course video is blocked.');
+            }
+        }, true);
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                handleBackgroundSwitchViolation('Switched to another browser tab or minimized window.');
+            }
+        });
+
+        window.addEventListener('blur', () => {
+            if (!isRequestingMediaPermission) {
+                handleBackgroundSwitchViolation('Switched to another application or external website.');
+            }
+        });
+
+        document.addEventListener('contextmenu', (e) => {
+            if (playerModal && playerModal.classList.contains('active') && activeLesson && (activeLesson.type || 'video') === 'video') {
+                e.preventDefault();
+            }
+        });
+
         document.addEventListener('keydown', (e) => {
             const tag = e.target?.tagName?.toLowerCase();
             if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
 
             if (playerModal && playerModal.classList.contains('active')) {
+                const upperKey = (e.key || '').toUpperCase();
+                if ((e.ctrlKey || e.metaKey) && ['T', 'N', 'L'].includes(upperKey)) {
+                    e.preventDefault();
+                    handleBackgroundSwitchViolation('Opening a new browser tab or external website is blocked during video playback.');
+                    return;
+                }
+                if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(upperKey)) || (e.ctrlKey && upperKey === 'U')) {
+                    e.preventDefault();
+                    showToast('🚫 Developer tools blocked during course playback.', 'warning');
+                    return;
+                }
                 if (e.code === 'Space' || e.key === ' ' || e.key === 'k' || e.key === 'K') {
                     e.preventDefault();
                     togglePlayPause();
                 } else if (e.key === 'ArrowLeft') {
                     e.preventDefault();
                     rewind10Seconds();
-                } else if (e.key === 'ArrowRight') {
+                } else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === 'End' || upperKey === 'L' || (/^[0-9]$/.test(e.key || ''))) {
                     e.preventDefault();
-                    forward10Seconds();
+                    if (!isLessonVideoCompleted) {
+                        blockSkipAttempt(getYTDuration());
+                    }
                 } else if (e.key === 'm' || e.key === 'M') {
                     e.preventDefault();
                     toggleMute();
                 } else if (e.key === 'f' || e.key === 'F') {
                     e.preventDefault();
                     toggleFullscreen();
-                } else if (e.key === 'p' || e.key === 'P') {
-                    e.preventDefault();
-                    togglePip();
                 } else if (e.key === 'Escape') {
-                    if (document.fullscreenElement) return;
-                    if (isPipActive) {
-                        togglePip();
-                    } else {
-                        closePlayerModal();
+                    const container = document.getElementById('videoContainer');
+                    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+                    if (container && container.classList.contains('is-fullscreen')) {
+                        container.classList.remove('is-fullscreen');
+                        updateFullscreenBtnUI(false);
+                        return;
                     }
+                    closePlayerModal();
                 }
             }
         });
@@ -1111,9 +2221,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const progress = window.UseasStore.getCourseProgress(courseId);
         let startLessonId = targetLessonId || progress.lastWatchedLessonId;
-        
-        const foundLesson = course.lessons.find(l => l.id === startLessonId);
-        activeLesson = foundLesson || course.lessons[0];
+        let foundIdx = course.lessons.findIndex(l => l.id === startLessonId);
+        if (foundIdx < 0 || (foundIdx > 0 && !progress.completedLessons.includes(course.lessons[foundIdx - 1].id))) {
+            foundIdx = course.lessons.findIndex((l, idx) => idx === 0 || progress.completedLessons.includes(course.lessons[idx - 1].id));
+            if (foundIdx < 0) foundIdx = 0;
+        }
+        activeLesson = course.lessons[foundIdx];
 
         modalCourseTitle.textContent = course.title;
         
@@ -1139,11 +2252,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const videoContainer = document.getElementById('videoContainer');
         const textView = document.getElementById('textArticleView');
         const testView = document.getElementById('testOverviewView');
+        const proctorPanel = document.getElementById('videoProctorPanel');
 
         stopCustomTimeTracker();
+        hideProctorGate();
+
+        const notesCard = document.getElementById('lessonNotesCard');
+        const notesInput = document.getElementById('lessonNotesInput');
+        const notesStatus = document.getElementById('notesSaveStatus');
+        if (notesInput && window.UseasStore) {
+            notesInput.value = window.UseasStore.getLessonNotes(activeCourse.id, lesson.id);
+            if (notesStatus) {
+                notesStatus.textContent = 'Saved';
+                notesStatus.classList.remove('saving');
+            }
+        }
+        if (notesCard) {
+            notesCard.style.display = type === 'test' ? 'none' : 'flex';
+        }
 
         if (type === 'video') {
             hasPlayerError = false;
+            updatePausedMask(false, 'Protected Course Video');
             const fallbackCard = document.getElementById('restrictedFallbackCard');
             const controlsBar = document.getElementById('customVideoControlsBar');
             const bigCenterBtn = document.getElementById('bigCenterPlayBtn');
@@ -1153,13 +2283,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (videoContainer) videoContainer.style.display = 'flex';
             if (videoWrap) videoWrap.style.display = 'block';
+            if (proctorPanel) proctorPanel.style.display = 'grid';
             if (textView) textView.style.display = 'none';
             if (testView) testView.style.display = 'none';
 
             const savedTimestamp = window.UseasStore.getLessonTimestamp(activeCourse.id, lesson.id);
             const currentProgress = window.UseasStore.getCourseProgress(activeCourse.id);
             const isLessonDone = currentProgress.completedLessons.includes(lesson.id);
+            isLessonVideoCompleted = isLessonDone;
             maxWatchedTime = isLessonDone ? 999999 : (savedTimestamp || 0);
+            actualWatchedSeconds = isLessonDone ? 0 : (savedTimestamp || 0);
+            lastWatchTickMs = Date.now();
+            skipViolationCount = 0;
+            lastSkipBlockedAlertMs = 0;
+            backgroundViolationCount = 0;
+            notListeningCount = 0;
+            awayStreakSeconds = 0;
+            latestYtCurrentTime = savedTimestamp || 0;
+            latestYtDuration = 0;
+            const scrubSliderReset = document.getElementById('customScrubSlider');
+            const scrubFillReset = document.getElementById('customScrubFill');
+            const scrubWatchedReset = document.getElementById('customScrubWatched');
+            const timeDisplayReset = document.getElementById('customTimeDisplay');
+            const remainingDisplayReset = document.getElementById('customRemainingDisplay');
+            if (scrubSliderReset) scrubSliderReset.value = 0;
+            if (scrubFillReset) scrubFillReset.style.width = '0%';
+            if (scrubWatchedReset) scrubWatchedReset.style.width = isLessonDone ? '100%' : '0%';
+            if (timeDisplayReset) timeDisplayReset.textContent = `${formatTime(latestYtCurrentTime)} / 0:00`;
+            if (remainingDisplayReset) remainingDisplayReset.textContent = '0:00 (0s left)';
+            updateVideoAnalysisUI(latestYtCurrentTime, 0);
 
             pendingResumeTimestamp = (!isLessonDone && savedTimestamp > 2) ? savedTimestamp : 0;
             const startParam = pendingResumeTimestamp > 2 ? `&start=${Math.floor(pendingResumeTimestamp)}` : '';
@@ -1168,7 +2320,9 @@ document.addEventListener('DOMContentLoaded', () => {
             currentVideoId = videoId;
             const isHttp = (window.location.protocol === 'http:' || window.location.protocol === 'https:') && window.location.origin && window.location.origin !== 'null';
             const originParam = isHttp ? `&origin=${encodeURIComponent(window.location.origin)}` : '';
-            const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&enablejsapi=1&controls=0&rel=0&modestbranding=1&disablekb=1&iv_load_policy=3&fs=0${startParam}${originParam}`;
+            const camReady = isLessonCameraLive();
+            const autoplayParam = camReady ? 1 : 0;
+            const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${autoplayParam}&enablejsapi=1&controls=0&rel=0&modestbranding=1&disablekb=1&iv_load_policy=3&cc_load_policy=0&playsinline=1&fs=0${startParam}${originParam}`;
 
             if (ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
                 try {
@@ -1177,6 +2331,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         ytPlayer.loadVideoById(videoId);
                     }
+                    if (!camReady) sendYTCommand('pauseVideo');
                 } catch (e) {
                     if (youtubeIframe) youtubeIframe.src = embedUrl;
                 }
@@ -1186,8 +2341,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             startCustomTimeTracker();
+
+            if (!camReady) {
+                showProctorGate(
+                    'camera',
+                    'Camera Access Required',
+                    'Allow camera access to verify you are watching and listening. You can also share your screen for proctored playback.',
+                    'Enable Camera & Play'
+                );
+                requestLessonCamera(true);
+            } else {
+                startAttentionMonitor();
+            }
         } else if (type === 'text') {
             if (videoContainer) videoContainer.style.display = 'none';
+            if (proctorPanel) proctorPanel.style.display = 'none';
             if (textView) textView.style.display = 'block';
             if (testView) testView.style.display = 'none';
 
@@ -1206,12 +2374,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     updatePlayerProgressUI(newProgress);
                     renderLessonsPlaylist();
                     renderCourses();
+                    updateNextBtnLockState();
                     showToast('🎉 Article reading completed!', 'success');
                     navigateLesson(1);
                 };
             }
         } else if (type === 'test') {
             if (videoContainer) videoContainer.style.display = 'none';
+            if (proctorPanel) proctorPanel.style.display = 'none';
             if (textView) textView.style.display = 'none';
             if (testView) testView.style.display = 'block';
 
@@ -1260,12 +2430,34 @@ document.addEventListener('DOMContentLoaded', () => {
         prevLessonBtn.disabled = currentIdx === 0;
         prevLessonBtn.style.opacity = currentIdx === 0 ? '0.4' : '1';
 
-        nextLessonBtn.disabled = currentIdx === activeCourse.lessons.length - 1;
-        nextLessonBtn.style.opacity = currentIdx === activeCourse.lessons.length - 1 ? '0.4' : '1';
+        updateNextBtnLockState();
 
         const progress = window.UseasStore.getCourseProgress(activeCourse.id);
         updatePlayerProgressUI(progress);
         highlightActiveSidebarItem(lesson.id);
+    }
+
+    function updateNextBtnLockState() {
+        if (!activeCourse || !activeLesson || !nextLessonBtn || !window.UseasStore) return;
+        const currentIdx = activeCourse.lessons.findIndex(l => l.id === activeLesson.id);
+        const hasNext = currentIdx >= 0 && currentIdx < activeCourse.lessons.length - 1;
+        if (!hasNext) {
+            nextLessonBtn.disabled = true;
+            nextLessonBtn.style.opacity = '0.4';
+            nextLessonBtn.innerHTML = `Next Video <i class="fa-solid fa-arrow-right"></i>`;
+            return;
+        }
+        const progress = window.UseasStore.getCourseProgress(activeCourse.id);
+        const currentCompleted = progress.completedLessons.includes(activeLesson.id);
+        if (!currentCompleted) {
+            nextLessonBtn.disabled = true;
+            nextLessonBtn.style.opacity = '0.55';
+            nextLessonBtn.innerHTML = `<i class="fa-solid fa-lock"></i> Next Locked`;
+        } else {
+            nextLessonBtn.disabled = false;
+            nextLessonBtn.style.opacity = '1';
+            nextLessonBtn.innerHTML = `Next Video <i class="fa-solid fa-arrow-right"></i>`;
+        }
     }
 
     function openPreExamModal() {
@@ -1461,19 +2653,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function navigateLesson(direction) {
-        if (!activeCourse || !activeLesson) return;
+        if (!activeCourse || !activeLesson || !window.UseasStore) return;
         const currentIdx = activeCourse.lessons.findIndex(l => l.id === activeLesson.id);
         const targetIdx = currentIdx + direction;
 
         if (targetIdx >= 0 && targetIdx < activeCourse.lessons.length) {
+            if (direction > 0) {
+                const progress = window.UseasStore.getCourseProgress(activeCourse.id);
+                const isNextUnlocked = progress.completedLessons.includes(activeCourse.lessons[targetIdx - 1].id);
+                if (!isNextUnlocked) {
+                    showToast('🔒 Locked! Watch the full current video without skipping to unlock the next lesson.', 'warning');
+                    return;
+                }
+            }
             loadLesson(activeCourse.lessons[targetIdx].id);
             renderLessonsPlaylist();
         }
     }
 
     function closePlayerModal() {
-        if (document.fullscreenElement) {
-            try { document.exitFullscreen(); } catch (e) {}
+        stopLessonProctoringStreams();
+        if (maskHideTimeout) {
+            clearTimeout(maskHideTimeout);
+            maskHideTimeout = null;
+        }
+        if (topBarShieldTimeout) {
+            clearTimeout(topBarShieldTimeout);
+            topBarShieldTimeout = null;
+        }
+        updateLiveAlertBanner(false);
+        const videoContainerFs = document.getElementById('videoContainer');
+        if (videoContainerFs && videoContainerFs.classList.contains('is-fullscreen')) {
+            videoContainerFs.classList.remove('is-fullscreen');
+            updateFullscreenBtnUI(false);
+        }
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+            try {
+                const exitFs = document.exitFullscreen || document.webkitExitFullscreen;
+                if (exitFs) exitFs.call(document);
+            } catch (e) {}
         }
         if (isPipActive) {
             isPipActive = false;
@@ -1496,6 +2714,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (playerModal) {
             playerModal.classList.remove('active');
         }
+        if (ytPlayer && typeof ytPlayer.stopVideo === 'function') {
+            try { ytPlayer.stopVideo(); } catch (e) {}
+        }
+        ytPlayer = null;
         if (youtubeIframe) {
             youtubeIframe.src = '';
         }
