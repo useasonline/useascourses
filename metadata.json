@@ -1,0 +1,8 @@
+{
+  "name": "useas Courses",
+  "description": "Discover top video courses, master web development, programming, and design with interactive YouTube video player and progress tracking.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
