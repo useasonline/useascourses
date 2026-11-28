@@ -148,8 +148,22 @@
             </div>
         </section>
 
+        <!-- Admin Section Switcher (All Courses | Student Course Registrations) -->
+        <section class="admin-view-switcher" role="tablist" aria-label="Admin Workspace Sections">
+            <button id="tabAllCoursesBtn" class="admin-view-tab active" type="button" role="tab" aria-selected="true" data-tab="courses">
+                <i class="fa-solid fa-book-open"></i>
+                <span>All Courses</span>
+                <span id="tabCoursesCount" class="admin-tab-count">0</span>
+            </button>
+            <button id="tabRegistrationsBtn" class="admin-view-tab" type="button" role="tab" aria-selected="false" data-tab="registrations">
+                <i class="fa-solid fa-id-card"></i>
+                <span>Student Course Registrations</span>
+                <span id="tabRegistrationsCount" class="admin-tab-count">0</span>
+            </button>
+        </section>
+
         <!-- Courses Management Table Card -->
-        <section class="admin-card">
+        <section id="adminCoursesSection" class="admin-card">
             <div class="table-header-row" style="flex-wrap: wrap; gap: 1rem;">
                 <div>
                     <h2 style="font-family: var(--font-heading); font-size: 1.4rem;">All Courses</h2>
@@ -186,7 +200,7 @@
         </section>
 
         <!-- Student Course Registrations Table Card -->
-        <section class="admin-card" style="margin-top: 2rem;">
+        <section id="adminRegistrationsSection" class="admin-card" style="display: none;">
             <div class="table-header-row" style="flex-wrap: wrap; gap: 1rem;">
                 <div>
                     <h2 style="font-family: var(--font-heading); font-size: 1.4rem;">
@@ -408,11 +422,11 @@
                             <textarea id="lessonDescInput" class="form-control" style="min-height: 60px;" placeholder="Optional notes for students..."></textarea>
                         </div>
                         <!-- Video Live Preview -->
-                        <div id="videoPreviewWrap" style="display: none; margin-bottom: 1rem;">
+                        <div id="videoPreviewWrap" style="display: none; margin: 0 auto 1rem auto; max-width: 480px;">
                             <label style="font-size: 0.8rem; color: var(--accent-cyan); display: block; margin-bottom: 0.4rem;">
                                 <i class="fa-solid fa-eye"></i> YouTube Embed Preview:
                             </label>
-                            <div class="video-wrapper" style="border-radius: var(--radius-md); overflow: hidden; max-height: 260px;">
+                            <div class="video-wrapper" style="border-radius: var(--radius-md); overflow: hidden;">
                                 <iframe id="previewIframe" src="" allowfullscreen></iframe>
                             </div>
                         </div>
